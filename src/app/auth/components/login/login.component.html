@@ -1,0 +1,11 @@
+<section class="login-card">
+  <h1>Sign in with Google</h1>
+
+  <p class="subtitle">Use your Google account to access your workout log.</p>
+
+  <button type="button" (click)="submit()" [disabled]="isSubmitting()">
+    Continue with Google
+  </button>
+
+  <p class="error" *ngIf="errorMessage()">{{ errorMessage() }}</p>
+</section>

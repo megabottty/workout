@@ -1,0 +1,194 @@
+.history {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.history-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.history-jump,
+.week-toggle {
+  border: 1px solid #c8d0dc;
+  background: #fff;
+  border-radius: 0.55rem;
+  padding: 0.4rem 0.75rem;
+  font: inherit;
+  color: #1f2937;
+  text-decoration: none;
+}
+
+.subtitle {
+  margin-top: -0.5rem;
+  color: #4a5568;
+}
+
+.week {
+  border: 1px solid #e5eaf1;
+  border-radius: 1rem;
+  padding: 1rem;
+  display: grid;
+  gap: 1rem;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.05);
+}
+
+.week-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.week-subtitle {
+  margin: 0.2rem 0 0;
+  color: #64748b;
+}
+
+.day-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.day-card {
+  border: 1px solid #dbe3ee;
+  border-radius: 0.85rem;
+  background: #fbfcff;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.day-card--selector {
+  text-align: left;
+  cursor: pointer;
+}
+
+.day-card--selector.is-active {
+  border-color: #7aa2d6;
+  background: #eef6ff;
+  box-shadow: inset 0 0 0 1px #d4e6ff;
+}
+
+.day-card__hint {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.day-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.day-detail-card {
+  border: 1px solid #dbe3ee;
+  border-radius: 0.85rem;
+  background: #fff;
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.count-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.5rem;
+  border-radius: 999px;
+  background: #e8eef7;
+  color: #334155;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 0.65rem;
+  background: #eef4fb;
+}
+
+.pager button {
+  border: 1px solid #c8d0dc;
+  background: #fff;
+  border-radius: 0.55rem;
+  padding: 0.35rem 0.6rem;
+  font: inherit;
+}
+
+.session {
+  border: 1px solid #e5eaf1;
+  border-radius: 0.65rem;
+  padding: 0.75rem;
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+
+h3,
+h4,
+h5 {
+  margin: 0;
+}
+
+.block h5 {
+  margin-bottom: 0.25rem;
+}
+
+ul {
+  margin: 0.5rem 0 0;
+}
+
+.empty-day {
+  color: #64748b;
+  font-size: 0.92rem;
+}
+
+.error-message {
+  color: #b42318;
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .history-toolbar,
+  .week-header,
+  .day-card__header,
+  .pager {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .history-jump,
+  .week-toggle,
+  .pager button {
+    width: 100%;
+    text-align: center;
+  }
+
+  .pager span {
+    text-align: center;
+  }
+
+  .day-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .week {
+    padding: 0.85rem;
+    border-radius: 0.85rem;
+  }
+
+  .day-card,
+  .day-detail-card,
+  .session {
+    padding: 0.65rem;
+  }
+}

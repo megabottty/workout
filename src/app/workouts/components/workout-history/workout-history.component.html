@@ -1,0 +1,93 @@
+<section class="history">
+  <div class="history-toolbar">
+    <h1>Weekly History</h1>
+    <a class="history-jump" [href]="latestWeekHref()">Latest week</a>
+  </div>
+  <p class="subtitle">Track each week across your two lower and two upper sessions.</p>
+
+  <p *ngIf="isLoading()">Loading history...</p>
+  <p class="error-message" *ngIf="errorMessage()">{{ errorMessage() }}</p>
+
+  <p *ngIf="!isLoading() && !errorMessage() && weekGroups().length === 0">
+    No workouts saved yet. Log a workout first to start tracking progress.
+  </p>
+
+  <section class="week" *ngFor="let week of weekGroups(); trackBy: trackWeek" [attr.id]="weekElementId(week)">
+    <header class="week-header">
+      <div>
+        <h2>{{ week.weekLabel }}</h2>
+        <p class="week-subtitle">Browse each training day with paged session history.</p>
+      </div>
+      <button type="button" class="week-toggle" (click)="toggleWeek(week)">
+        {{ isWeekExpanded(week) ? 'Collapse week' : 'Expand week' }}
+      </button>
+    </header>
+
+    <div class="day-grid" *ngIf="isWeekExpanded(week)">
+      <button
+        type="button"
+        class="day-card day-card--selector"
+        *ngFor="let trainingDay of trainingDays"
+        [class.is-active]="selectedDayForWeek(week) === trainingDay"
+        (click)="selectDay(week, trainingDay)"
+      >
+        <div class="day-card__header">
+          <h3>{{ trainingDayLabels[trainingDay] }}</h3>
+          <span class="count-pill">{{ sessionRangeLabel(week, trainingDay) }}</span>
+        </div>
+        <p class="day-card__hint">
+          {{ dayHasSessions(week, trainingDay) ? 'Open day history' : 'No session logged' }}
+        </p>
+      </button>
+
+      <section class="day-detail-card">
+        <div class="day-card__header">
+          <h3>{{ trainingDayLabels[selectedDayForWeek(week)] }}</h3>
+          <span class="count-pill">{{ sessionRangeLabel(week, selectedDayForWeek(week)) }}</span>
+        </div>
+
+        <ng-container *ngIf="selectedDaySessionsForWeek(week).length > 0; else noSession">
+          <div class="pager" *ngIf="totalPagesForDay(week, selectedDayForWeek(week)) > 1">
+            <button type="button" (click)="goToPreviousPage(week, selectedDayForWeek(week))" [disabled]="!canGoPreviousPage(week, selectedDayForWeek(week))">
+              Prev
+            </button>
+            <span>Page {{ currentDayPage(week, selectedDayForWeek(week)) }} / {{ totalPagesForDay(week, selectedDayForWeek(week)) }}</span>
+            <button type="button" (click)="goToNextPage(week, selectedDayForWeek(week))" [disabled]="!canGoNextPage(week, selectedDayForWeek(week))">
+              Next
+            </button>
+          </div>
+
+          <article class="session" *ngFor="let session of pagedSessionsForDay(week, selectedDayForWeek(week)); trackBy: trackSession">
+            <header>
+              <h4>{{ session.date }}</h4>
+              <p *ngIf="session.notes">{{ session.notes }}</p>
+            </header>
+
+            <section class="block" *ngFor="let block of session.blocks">
+              <h5>{{ block.name }}</h5>
+              <ul>
+                <li *ngFor="let movement of block.movements">
+                  <strong>{{ movement.movementName }}</strong>
+                  <span *ngIf="movement.notes"> — {{ movement.notes }}</span>
+                  <ul>
+                    <li *ngFor="let setEntry of movement.setEntries">
+                      Set {{ setEntry.setNumber }}:
+                      <span *ngIf="setEntry.reps !== null">{{ setEntry.reps }} reps</span>
+                      <span *ngIf="setEntry.reps !== null && setEntry.load !== null">, </span>
+                      <span *ngIf="setEntry.load !== null">&#64; {{ setEntry.load }} load</span>
+                      <span *ngIf="setEntry.reps === null && setEntry.load === null">Not logged</span>
+                    </li>
+                  </ul>
+                </li>
+              </ul>
+            </section>
+          </article>
+        </ng-container>
+
+        <ng-template #noSession>
+          <p class="empty-day">No session logged for this day</p>
+        </ng-template>
+      </section>
+    </div>
+  </section>
+</section>

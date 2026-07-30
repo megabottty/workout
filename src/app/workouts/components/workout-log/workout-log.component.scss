@@ -1,0 +1,276 @@
+.log-workout {
+  display: grid;
+  gap: 1.25rem;
+  background: #ffffff;
+  border: 1px solid #e7ebf0;
+  border-radius: 1rem;
+  padding: 1.25rem;
+  box-shadow: 0 6px 24px rgba(16, 24, 40, 0.06);
+}
+
+.subtitle {
+  margin-top: 0;
+  color: #4a5568;
+}
+
+form {
+  display: grid;
+  gap: 1.25rem;
+}
+
+label {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.session-meta {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.meta-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+input,
+select,
+textarea {
+  border: 1px solid #d0d7e2;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+}
+
+.block {
+  border: 1px solid #dbe3ee;
+  border-radius: 0.85rem;
+  padding: 1rem;
+  display: grid;
+  gap: 0.75rem;
+  background: #fbfcff;
+}
+
+.block-header {
+  display: flex;
+  gap: 1rem;
+  align-items: end;
+}
+
+.movement-row {
+  border: 1px solid #e7ebf0;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 0.7fr);
+  align-items: start;
+  background: #fff;
+}
+
+.movement-main {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.movement-row > .movement-main:only-child {
+  grid-column: 1 / -1;
+}
+
+.set-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.set-row {
+  border: 1px solid #e6eaf0;
+  border-radius: 0.6rem;
+  padding: 0.5rem;
+  display: grid;
+  gap: 0.4rem;
+  background: #f8fafc;
+  min-width: 0;
+}
+
+.set-row h4 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.set-row label,
+.set-row input,
+.set-row .remove-set {
+  width: 100%;
+  min-width: 0;
+}
+
+.movement-reference {
+  border: 1px dashed #cbd5e1;
+  border-radius: 0.7rem;
+  padding: 0.75rem;
+  background: #f8fafc;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.movement-reference h4 {
+  margin: 0;
+}
+
+.movement-reference p {
+  margin: 0;
+  color: #475569;
+  font-size: 0.92rem;
+}
+
+.movement-reference__last-week {
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.45rem;
+}
+
+.history-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.movement-reference ul {
+  margin: 0;
+  padding-left: 1rem;
+}
+
+.movement-history-list {
+  display: grid;
+  gap: 0.45rem;
+  max-height: 260px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 980px) {
+  .movement-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.history-row-title {
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+button {
+  border: 1px solid #c8d0dc;
+  background: #fff;
+  border-radius: 0.55rem;
+  padding: 0.45rem 0.8rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.actions button[type="submit"] {
+  background: #1a202c;
+  color: #fff;
+  border-color: #1a202c;
+}
+
+.save-message {
+  color: #1f7a37;
+  font-weight: 600;
+}
+
+.copy-message {
+  color: #1f7a37;
+  margin: 0;
+  font-weight: 500;
+}
+
+.error-message {
+  color: #b42318;
+  font-weight: 600;
+}
+
+.recent-history {
+  border-top: 1px solid #e7ebf0;
+  padding-top: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.recent-history h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.recent-session {
+  border: 1px solid #e7ebf0;
+  border-radius: 0.65rem;
+  background: #fff;
+  padding: 0.75rem;
+}
+
+.recent-session h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.recent-session p {
+  margin: 0 0 0.4rem;
+  color: #4a5568;
+}
+
+.recent-session ul {
+  margin: 0;
+  padding-left: 1rem;
+}
+
+@media (max-width: 640px) {
+  .log-workout {
+    padding: 0.9rem;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font-size: 16px;
+  }
+
+  .session-meta,
+  .set-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .block-header,
+  .meta-actions,
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .actions button,
+  .meta-actions button,
+  .block > button,
+  .movement-main > button,
+  .set-row .remove-set,
+  .add-set {
+    width: 100%;
+  }
+
+  .movement-row {
+    padding: 0.65rem;
+    grid-template-columns: 1fr;
+  }
+
+  .movement-reference {
+    order: 2;
+  }
+}

@@ -1,0 +1,190 @@
+<section class="log-workout">
+  <h1>Log Workout</h1>
+  <p class="subtitle">Log your daily workout, then come back and update that day any time.</p>
+
+  <form (ngSubmit)="saveWorkout()" #workoutForm="ngForm">
+    <div class="session-meta">
+      <label>
+        Workout date
+        <input
+          type="date"
+          name="workoutDate"
+          [ngModel]="workoutDate()"
+          (ngModelChange)="workoutDate.set($event); onWorkoutDateChange()"
+          required
+        />
+      </label>
+
+      <label>
+        Training day
+        <select
+          name="trainingDay"
+          [ngModel]="trainingDay()"
+          (ngModelChange)="trainingDay.set($event); onTrainingDayChange()"
+          required
+        >
+          <option *ngFor="let option of trainingDayOptions" [value]="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </label>
+    </div>
+
+    <div class="meta-actions">
+      <button type="button" (click)="copyLastWeek()">Copy last week</button>
+      <p class="copy-message" *ngIf="copiedFromDate()">
+        Copied {{ trainingDayLabels[trainingDay()] }} from {{ copiedFromDate() }}.
+      </p>
+    </div>
+
+    <label>
+      Session notes
+      <textarea
+        name="workoutNotes"
+        [ngModel]="workoutNotes()"
+        (ngModelChange)="workoutNotes.set($event)"
+        rows="2"
+      ></textarea>
+    </label>
+
+    <section
+      class="block"
+      *ngFor="let block of blocks; trackBy: trackById"
+    >
+      <div class="block-header">
+        <label>
+          Block name
+          <input
+            type="text"
+            [name]="'blockName-' + block.id"
+            [(ngModel)]="block.name"
+            required
+          />
+        </label>
+        <button type="button" (click)="removeBlock(block.id)">Remove block</button>
+      </div>
+
+      <article
+        class="movement-row"
+        *ngFor="let movement of block.movements; trackBy: trackById"
+      >
+        <div class="movement-main">
+          <label>
+            Movement
+            <input
+              type="text"
+              [name]="'movementName-' + movement.id"
+              [(ngModel)]="movement.movementName"
+              list="movement-options"
+              placeholder="e.g. Back squat"
+              required
+            />
+          </label>
+
+          <div class="set-grid">
+            <article class="set-row" *ngFor="let setEntry of movement.setEntries; let setIndex = index">
+              <h4>Set {{ setEntry.setNumber }}</h4>
+              <label>
+                Reps
+                <input
+                  type="number"
+                  min="0"
+                  [name]="'reps-' + movement.id + '-' + setEntry.setNumber"
+                  [(ngModel)]="setEntry.reps"
+                />
+              </label>
+              <label>
+                Load
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  [name]="'load-' + movement.id + '-' + setEntry.setNumber"
+                  [(ngModel)]="setEntry.load"
+                  (ngModelChange)="onSetLoadChange(movement, setEntry.setNumber, $event)"
+                />
+              </label>
+              <button type="button" class="remove-set" (click)="removeSet(movement, setIndex)">
+                Remove set
+              </button>
+            </article>
+          </div>
+          <button type="button" class="add-set" (click)="addSet(movement)">Add set</button>
+
+          <label>
+            Notes
+            <input
+              type="text"
+              [name]="'notes-' + movement.id"
+              [(ngModel)]="movement.notes"
+            />
+          </label>
+
+          <button type="button" (click)="removeMovement(block.id, movement.id)">
+            Remove movement
+          </button>
+        </div>
+
+        <ng-container *ngIf="movementHistoryFor(movement.movementName) as history">
+          <aside class="movement-reference" *ngIf="history.length > 0">
+            <h4>Movement history</h4>
+
+            <div class="movement-reference__last-week" *ngIf="movementReferenceFor(movement.movementName) as reference">
+              <p class="history-label">Last week benchmark</p>
+              <p>{{ reference.movementName }} • {{ reference.blockName }} • {{ reference.sourceDate }}</p>
+            </div>
+
+            <ul class="movement-history-list">
+              <li *ngFor="let entry of history">
+                <p class="history-row-title">
+                  {{ entry.sessionDate }} • {{ trainingDayLabels[entry.trainingDay] }} • {{ entry.blockName }}
+                </p>
+                <ul>
+                  <li *ngFor="let setEntry of entry.setEntries">
+                    Set {{ setEntry.setNumber }}:
+                    <span *ngIf="setEntry.reps !== null">{{ setEntry.reps }} reps</span>
+                    <span *ngIf="setEntry.reps !== null && setEntry.load !== null">, </span>
+                    <span *ngIf="setEntry.load !== null">&#64; {{ setEntry.load }} load</span>
+                    <span *ngIf="setEntry.reps === null && setEntry.load === null">Not logged</span>
+                  </li>
+                </ul>
+                <p *ngIf="entry.notes">{{ entry.notes }}</p>
+              </li>
+            </ul>
+          </aside>
+        </ng-container>
+      </article>
+
+      <button type="button" (click)="addMovement(block.id)">Add movement</button>
+    </section>
+
+    <div class="actions">
+      <button type="button" (click)="addBlock()">Add block</button>
+      <button type="submit" [disabled]="isLoading()">
+        {{ isEditingExisting() ? 'Update workout' : 'Save workout' }}
+      </button>
+    </div>
+  </form>
+
+  <p *ngIf="isLoading()">Loading workout...</p>
+  <p class="error-message" *ngIf="errorMessage()">{{ errorMessage() }}</p>
+  <p class="save-message" *ngIf="saveMessage()">{{ saveMessage() }}</p>
+
+  <datalist id="movement-options">
+    <option *ngFor="let movementName of movementOptions()" [value]="movementName"></option>
+  </datalist>
+
+  <section class="recent-history" *ngIf="recentSessionsForDay().length > 0">
+    <h2>Recent {{ trainingDayLabels[trainingDay()] }} History</h2>
+    <article class="recent-session" *ngFor="let session of recentSessionsForDay(); trackBy: trackById">
+      <h3>{{ session.date }}</h3>
+      <p *ngIf="session.notes">{{ session.notes }}</p>
+      <ul>
+        <li *ngFor="let block of session.blocks">
+          <strong>{{ block.name }}</strong>:
+          <span>{{ movementNames(block) }}</span>
+        </li>
+      </ul>
+    </article>
+  </section>
+</section>

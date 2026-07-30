@@ -18,6 +18,30 @@ Run `ng build` to build the project. The build artifacts will be stored in the `
 
 Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
 
+## Firebase auth + per-user workouts
+
+This app is wired to Firebase Authentication + Firestore and stores workouts per user at:
+
+`users/{uid}/workouts/{date}__{trainingDay}`
+
+Authentication is required to access `/workouts/log` and `/history`.
+
+Supported sign-in method in-app:
+- Google (popup flow)
+
+### One-time project setup
+
+1. `firebase login`
+2. `firebase use workoutapp-626b7`
+3. `firebase deploy --only firestore:rules`
+4. In Firebase Console -> Authentication -> Sign-in method, enable:
+   - Google
+
+## Deploy
+
+1. `npm run build`
+2. `npm run deploy` (or `npm run deploy:hosting`)
+
 ## Running end-to-end tests
 
 Run `ng e2e` to execute the end-to-end tests via a platform of your choice. To use this command, you need to first add a package that implements end-to-end testing capabilities.
