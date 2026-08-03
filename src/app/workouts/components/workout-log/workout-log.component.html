@@ -254,6 +254,8 @@
       </label>
     </section>
 
+    <p class="error-message" *ngIf="modalErrorMessage()">{{ modalErrorMessage() }}</p>
+
     <div class="modal-actions">
       <button type="button" (click)="closeProgramBlockModal()" [disabled]="isCreatingProgramBlock()">Cancel</button>
       <button type="button" (click)="createProgramBlockFromModal()" [disabled]="isCreatingProgramBlock()">

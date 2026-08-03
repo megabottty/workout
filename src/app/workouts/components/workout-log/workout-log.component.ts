@@ -85,6 +85,7 @@ export class WorkoutLogComponent {
 
   readonly isProgramBlockModalOpen = signal(false);
   readonly isCreatingProgramBlock = signal(false);
+  readonly modalErrorMessage = signal('');
   readonly modalProgramBlockName = signal('');
   readonly modalProgramBlockTotalWeeks = signal(8);
   readonly modalMovementTemplates = signal<Record<TrainingDay, string>>({
@@ -439,6 +440,7 @@ export class WorkoutLogComponent {
       'upper-b': '',
     });
     this.errorMessage.set('');
+    this.modalErrorMessage.set('');
     this.isProgramBlockModalOpen.set(true);
   }
 
@@ -448,9 +450,11 @@ export class WorkoutLogComponent {
     }
 
     this.isProgramBlockModalOpen.set(false);
+    this.modalErrorMessage.set('');
   }
 
   onModalTemplateChange(day: TrainingDay, value: string): void {
+    this.modalErrorMessage.set('');
     this.modalMovementTemplates.update((existing) => ({
       ...existing,
       [day]: value,
@@ -463,7 +467,7 @@ export class WorkoutLogComponent {
     const templates = this.modalMovementTemplates();
 
     if (!name) {
-      this.errorMessage.set('Program Block name is required.');
+      this.modalErrorMessage.set('Program Block name is required.');
       return;
     }
 
@@ -474,15 +478,9 @@ export class WorkoutLogComponent {
       'upper-b': parseTemplateMovements(templates['upper-b']),
     };
 
-    for (const day of TRAINING_DAY_ORDER) {
-      if (templatesByDay[day].length === 0) {
-        this.errorMessage.set(`Add at least one movement for ${this.trainingDayLabels[day]}.`);
-        return;
-      }
-    }
-
     this.isCreatingProgramBlock.set(true);
     this.errorMessage.set('');
+    this.modalErrorMessage.set('');
 
     try {
       const userId = this.requireUserId();
@@ -508,7 +506,7 @@ export class WorkoutLogComponent {
       this.copyWeekMessage.set('');
       this.loadSelectionFromCache(this.workoutDate(), this.trainingDay());
     } catch (error: unknown) {
-      this.errorMessage.set(error instanceof Error ? error.message : 'Unable to create Program Block.');
+      this.modalErrorMessage.set(error instanceof Error ? error.message : 'Unable to create Program Block.');
     } finally {
       this.isCreatingProgramBlock.set(false);
     }

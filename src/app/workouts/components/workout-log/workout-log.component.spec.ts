@@ -172,6 +172,18 @@ describe('WorkoutLogComponent', () => {
     expect(component.currentProgramWeekLabel()).toBe('Week 1 of 6');
     expect(component.isProgramBlockModalOpen()).toBeFalse();
   });
+
+  it('creates a new program block even when templates are blank', async () => {
+    component.openProgramBlockModal();
+    component.modalProgramBlockName.set('Quick Block');
+    component.modalProgramBlockTotalWeeks.set(4);
+
+    await component.createProgramBlockFromModal();
+
+    expect(component.selectedProgramBlockName()).toBe('Quick Block');
+    expect(component.isProgramBlockModalOpen()).toBeFalse();
+    expect(component.modalErrorMessage()).toBe('');
+  });
 });
 
 function makeSession(overrides?: {
