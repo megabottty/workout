@@ -106,13 +106,43 @@ describe('WorkoutHistoryComponent', () => {
     expect(pageText).toContain('Lower Day A');
     expect(pageText).toContain('2026-07-18');
   });
+
+  it('filters rendered sessions by selected program block', () => {
+    const week = {
+      weekStartDate: '2026-07-20',
+      weekLabel: 'Week of Jul 20, 2026',
+      sessions: [
+        makeSession('1', '2026-07-21', 'upper-a', 'block-1', 'Program Block 1'),
+        makeSession('2', '2026-07-20', 'upper-a', 'block-2', 'Program Block 2'),
+      ],
+    };
+
+    component.weekGroups.set([week]);
+    component.allSessions.set(week.sessions);
+    component.onProgramBlockFilterChange('block-2');
+    component.selectDay(week, 'upper-a');
+    fixture.detectChanges();
+
+    const pageText = fixture.nativeElement.textContent as string;
+    expect(pageText).toContain('2026-07-20');
+    expect(pageText).toContain('Program Block 2');
+    expect(pageText).not.toContain('2026-07-21');
+  });
 });
 
-function makeSession(id: string, date: string, trainingDay: TrainingDay): WorkoutSession {
+function makeSession(
+  id: string,
+  date: string,
+  trainingDay: TrainingDay,
+  programBlockId = 'block-1',
+  programBlockName = 'Program Block 1'
+): WorkoutSession {
   return {
     id,
     date,
     trainingDay,
+    programBlockId,
+    programBlockName,
     notes: '',
     blocks: [],
     createdAt: `${date}T00:00:00.000Z`,

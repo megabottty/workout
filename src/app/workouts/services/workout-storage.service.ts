@@ -1,11 +1,22 @@
 import { Injectable } from '@angular/core';
 import { Firestore, collection, doc, getDoc, getDocs, orderBy, query, setDoc } from '@angular/fire/firestore';
 
-import { MovementEntry, SetEntry, TrainingDay, WorkoutBlock, WorkoutSession } from '../models/workout.models';
+import {
+  MovementEntry,
+  ProgramBlockDefinition,
+  ProgramBlockTemplateMovement,
+  SetEntry,
+  TrainingDay,
+  WorkoutBlock,
+  WorkoutSession,
+} from '../models/workout.models';
+import { normalizeProgramBlock } from '../utils/program-block.utils';
 
 export type SaveWorkoutInput = {
   date: string;
   trainingDay: TrainingDay;
+  programBlockId: string;
+  programBlockName: string;
   notes: string;
   blocks: Array<{
     name: string;
@@ -21,6 +32,13 @@ export type SaveWorkoutInput = {
   }>;
 };
 
+export type SaveProgramBlockDefinitionInput = {
+  id: string;
+  name: string;
+  totalWeeks: number;
+  templatesByDay: Record<TrainingDay, ProgramBlockTemplateMovement[]>;
+};
+
 @Injectable({ providedIn: 'root' })
 export class WorkoutStorageService {
   constructor(private readonly firestore: Firestore) {}
@@ -30,18 +48,31 @@ export class WorkoutStorageService {
     const workoutsRef = collection(this.firestore, `users/${safeUserId}/workouts`);
     const snapshot = await getDocs(query(workoutsRef, orderBy('date', 'desc')));
 
-    return snapshot.docs.map((docSnapshot) => {
-      const data = docSnapshot.data();
-      return this.normalizeSession({
-        id: docSnapshot.id,
-        ...data,
-      });
-    });
+    return snapshot.docs.map((docSnapshot) => this.normalizeSession({
+      id: docSnapshot.id,
+      ...docSnapshot.data(),
+    }));
   }
 
-  async getSessionByDateAndDay(userId: string, date: string, trainingDay: TrainingDay): Promise<WorkoutSession | null> {
+  async getProgramBlockDefinitions(userId: string): Promise<ProgramBlockDefinition[]> {
     const safeUserId = this.assertUserId(userId);
-    const sessionRef = doc(this.firestore, `users/${safeUserId}/workouts/${this.workoutDocId(date, trainingDay)}`);
+    const definitionsRef = collection(this.firestore, `users/${safeUserId}/programBlocks`);
+    const snapshot = await getDocs(query(definitionsRef, orderBy('createdAt', 'desc')));
+
+    return snapshot.docs.map((docSnapshot) => this.normalizeProgramBlockDefinition({
+      id: docSnapshot.id,
+      ...docSnapshot.data(),
+    }));
+  }
+
+  async getSessionByDateAndDay(
+    userId: string,
+    date: string,
+    trainingDay: TrainingDay,
+    programBlockId?: string
+  ): Promise<WorkoutSession | null> {
+    const safeUserId = this.assertUserId(userId);
+    const sessionRef = doc(this.firestore, `users/${safeUserId}/workouts/${this.workoutDocId(date, trainingDay, programBlockId)}`);
     const snapshot = await getDoc(sessionRef);
     if (snapshot.exists()) {
       return this.normalizeSession({
@@ -71,12 +102,14 @@ export class WorkoutStorageService {
       throw new Error('Workout date is required.');
     }
 
-    const sessionRef = doc(this.firestore, `users/${safeUserId}/workouts/${this.workoutDocId(input.date, input.trainingDay)}`);
+    const normalizedProgramBlock = normalizeProgramBlock(input.programBlockId, input.programBlockName);
+    const sessionRef = doc(this.firestore, `users/${safeUserId}/workouts/${this.workoutDocId(input.date, input.trainingDay, normalizedProgramBlock.id)}`);
     const existingSnapshot = await getDoc(sessionRef);
     const now = new Date().toISOString();
     let createdAt = existingSnapshot.exists()
       ? (existingSnapshot.data()['createdAt'] as string | undefined) ?? now
       : now;
+
     if (!existingSnapshot.exists()) {
       // Backward compatibility for older records saved by date-only ID.
       const legacyRef = doc(this.firestore, `users/${safeUserId}/workouts/${input.date}`);
@@ -95,6 +128,8 @@ export class WorkoutStorageService {
     const data = {
       date: input.date,
       trainingDay: input.trainingDay,
+      programBlockId: normalizedProgramBlock.id,
+      programBlockName: normalizedProgramBlock.name,
       notes: input.notes.trim(),
       blocks: input.blocks.map((block) => ({
         id: crypto.randomUUID(),
@@ -117,7 +152,41 @@ export class WorkoutStorageService {
     await setDoc(sessionRef, data);
 
     return this.normalizeSession({
-      id: input.date,
+      id: sessionRef.id,
+      ...data,
+    });
+  }
+
+  async saveProgramBlockDefinition(userId: string, input: SaveProgramBlockDefinitionInput): Promise<ProgramBlockDefinition> {
+    const safeUserId = this.assertUserId(userId);
+    const safeId = input.id.trim();
+    const safeName = input.name.trim();
+    if (!safeId) {
+      throw new Error('Program block ID is required.');
+    }
+    if (!safeName) {
+      throw new Error('Program block name is required.');
+    }
+
+    const now = new Date().toISOString();
+    const definitionRef = doc(this.firestore, `users/${safeUserId}/programBlocks/${safeId}`);
+    const existingSnapshot = await getDoc(definitionRef);
+    const createdAt = existingSnapshot.exists()
+      ? (existingSnapshot.data()['createdAt'] as string | undefined) ?? now
+      : now;
+
+    const data = {
+      name: safeName,
+      totalWeeks: Math.max(1, Math.floor(input.totalWeeks)),
+      templatesByDay: this.normalizeTemplatesByDay(input.templatesByDay),
+      createdAt,
+      updatedAt: now,
+    };
+
+    await setDoc(definitionRef, data);
+
+    return this.normalizeProgramBlockDefinition({
+      id: safeId,
       ...data,
     });
   }
@@ -139,15 +208,83 @@ export class WorkoutStorageService {
       throw new Error('Workout session has missing fields.');
     }
 
+    const normalizedProgramBlock = normalizeProgramBlock(candidate.programBlockId, candidate.programBlockName);
+
     return {
       id: candidate.id,
       date: candidate.date,
       trainingDay: this.normalizeTrainingDay(candidate.trainingDay),
+      programBlockId: normalizedProgramBlock.id,
+      programBlockName: normalizedProgramBlock.name,
       notes: candidate.notes,
       createdAt: candidate.createdAt,
       updatedAt: candidate.updatedAt,
       blocks: candidate.blocks.map((block) => this.normalizeBlock(block)),
     };
+  }
+
+  private normalizeProgramBlockDefinition(value: unknown): ProgramBlockDefinition {
+    if (!value || typeof value !== 'object') {
+      throw new Error('Program block definition is invalid.');
+    }
+
+    const candidate = value as Partial<ProgramBlockDefinition>;
+    if (
+      typeof candidate.id !== 'string' ||
+      typeof candidate.name !== 'string' ||
+      typeof candidate.createdAt !== 'string' ||
+      typeof candidate.updatedAt !== 'string'
+    ) {
+      throw new Error('Program block definition has missing fields.');
+    }
+
+    const totalWeeks = typeof candidate.totalWeeks === 'number'
+      ? Math.max(1, Math.floor(candidate.totalWeeks))
+      : 1;
+
+    return {
+      id: candidate.id,
+      name: candidate.name,
+      totalWeeks,
+      templatesByDay: this.normalizeTemplatesByDay(candidate.templatesByDay),
+      createdAt: candidate.createdAt,
+      updatedAt: candidate.updatedAt,
+    };
+  }
+
+  private normalizeTemplatesByDay(value: unknown): Record<TrainingDay, ProgramBlockTemplateMovement[]> {
+    const source = value && typeof value === 'object' ? value as Partial<Record<TrainingDay, unknown>> : {};
+    return {
+      'lower-a': this.normalizeTemplateMovements(source['lower-a']),
+      'upper-a': this.normalizeTemplateMovements(source['upper-a']),
+      'lower-b': this.normalizeTemplateMovements(source['lower-b']),
+      'upper-b': this.normalizeTemplateMovements(source['upper-b']),
+    };
+  }
+
+  private normalizeTemplateMovements(value: unknown): ProgramBlockTemplateMovement[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value
+      .map((item) => {
+        if (!item || typeof item !== 'object') {
+          return null;
+        }
+        const movementName = (item as Partial<ProgramBlockTemplateMovement>).movementName;
+        if (typeof movementName !== 'string') {
+          return null;
+        }
+
+        const trimmed = movementName.trim();
+        if (!trimmed) {
+          return null;
+        }
+
+        return { movementName: trimmed };
+      })
+      .filter((item): item is ProgramBlockTemplateMovement => item !== null);
   }
 
   private normalizeBlock(value: unknown): WorkoutBlock {
@@ -167,9 +304,7 @@ export class WorkoutStorageService {
     return {
       id: candidate.id,
       name: candidate.name,
-      movements: candidate.movements.map((movement) =>
-        this.normalizeMovement(movement)
-      ),
+      movements: candidate.movements.map((movement) => this.normalizeMovement(movement)),
     };
   }
 
@@ -206,8 +341,7 @@ export class WorkoutStorageService {
         return this.createDefaultSetEntries();
       }
 
-      return candidate.setEntries
-        .map((entry, index) => this.normalizeSetEntry(entry, index + 1));
+      return candidate.setEntries.map((entry, index) => this.normalizeSetEntry(entry, index + 1));
     }
 
     const sets = this.normalizeNullableNumber(candidate.sets);
@@ -260,8 +394,9 @@ export class WorkoutStorageService {
     return 'upper-a';
   }
 
-  private workoutDocId(date: string, trainingDay: TrainingDay): string {
-    return `${date}__${trainingDay}`;
+  private workoutDocId(date: string, trainingDay: TrainingDay, programBlockId?: string): string {
+    const normalized = normalizeProgramBlock(programBlockId, undefined);
+    return `${date}__${trainingDay}__${normalized.id}`;
   }
 
   private createDefaultSetEntries(): SetEntry[] {

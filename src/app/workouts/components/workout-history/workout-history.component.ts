@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, effect, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 
 import { AuthService } from '../../../auth/services/auth.service';
@@ -15,18 +16,45 @@ import {
 @Component({
   selector: 'app-workout-history',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './workout-history.component.html',
   styleUrl: './workout-history.component.scss',
 })
 export class WorkoutHistoryComponent {
   readonly weekGroups = signal<WeekGroup[]>([]);
+  readonly allSessions = signal<WorkoutSession[]>([]);
   readonly errorMessage = signal('');
   readonly isLoading = signal(false);
   readonly dayPageSize = 3;
   readonly trainingDays = TRAINING_DAY_ORDER;
   readonly trainingDayLabels = TRAINING_DAY_LABELS;
-  readonly hasWeeks = computed(() => this.weekGroups().length > 0);
+  readonly selectedProgramBlockFilter = signal('all');
+  readonly hasWeeks = computed(() => this.filteredWeekGroups().length > 0);
+  readonly programBlockOptions = computed(() => {
+    const blocks = new Map<string, string>();
+    for (const session of this.allSessions()) {
+      if (!blocks.has(session.programBlockId)) {
+        blocks.set(session.programBlockId, session.programBlockName);
+      }
+    }
+
+    return Array.from(blocks.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  });
+  readonly filteredWeekGroups = computed(() => {
+    const selectedFilter = this.selectedProgramBlockFilter();
+    if (selectedFilter === 'all') {
+      return this.weekGroups();
+    }
+
+    return this.weekGroups()
+      .map((week) => ({
+        ...week,
+        sessions: week.sessions.filter((session) => session.programBlockId === selectedFilter),
+      }))
+      .filter((week) => week.sessions.length > 0);
+  });
 
   private readonly dayPageState = new Map<string, number>();
   private readonly weekExpandedState = new Map<string, boolean>();
@@ -62,7 +90,7 @@ export class WorkoutHistoryComponent {
   }
 
   latestWeekHref(): string {
-    return this.weekGroups()[0] ? `#${this.weekElementId(this.weekGroups()[0])}` : '#';
+    return this.filteredWeekGroups()[0] ? `#${this.weekElementId(this.filteredWeekGroups()[0])}` : '#';
   }
 
   isWeekExpanded(week: WeekGroup): boolean {
@@ -90,6 +118,10 @@ export class WorkoutHistoryComponent {
 
   selectDay(week: WeekGroup, trainingDay: TrainingDay): void {
     this.selectedDayState.set(week.weekStartDate, trainingDay);
+  }
+
+  onProgramBlockFilterChange(nextFilter: string): void {
+    this.selectedProgramBlockFilter.set(nextFilter);
   }
 
   dayHasSessions(week: WeekGroup, trainingDay: TrainingDay): boolean {
@@ -165,6 +197,14 @@ export class WorkoutHistoryComponent {
         return;
       }
 
+      this.allSessions.set(sessions);
+      if (
+        this.selectedProgramBlockFilter() !== 'all' &&
+        !sessions.some((session) => session.programBlockId === this.selectedProgramBlockFilter())
+      ) {
+        this.selectedProgramBlockFilter.set('all');
+      }
+
       const nextWeeks = groupSessionsByWeek(sessions, 1);
       this.weekGroups.set(nextWeeks);
       this.clampDayPageState(nextWeeks);
@@ -175,6 +215,7 @@ export class WorkoutHistoryComponent {
 
       this.errorMessage.set(error instanceof Error ? error.message : 'Unable to load history.');
       this.weekGroups.set([]);
+      this.allSessions.set([]);
     } finally {
       if (loadToken === this.loadToken) {
         this.isLoading.set(false);

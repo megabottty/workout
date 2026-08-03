@@ -6,6 +6,8 @@ function makeSession(id: string, date: string): WorkoutSession {
     id,
     date,
     trainingDay: 'lower-a',
+    programBlockId: 'block-1',
+    programBlockName: 'Program Block 1',
     notes: '',
     blocks: [],
     createdAt: `${date}T00:00:00.000Z`,

@@ -5,6 +5,20 @@
   <form (ngSubmit)="saveWorkout()" #workoutForm="ngForm">
     <div class="session-meta">
       <label>
+        Program Block
+        <select
+          name="programBlock"
+          [ngModel]="selectedProgramBlockId()"
+          (ngModelChange)="onProgramBlockChange($event)"
+          required
+        >
+          <option *ngFor="let option of programBlockOptions()" [value]="option.id">
+            {{ option.name }}
+          </option>
+        </select>
+      </label>
+
+      <label>
         Workout date
         <input
           type="date"
@@ -30,10 +44,24 @@
       </label>
     </div>
 
+    <div class="program-block-context">
+      <p class="program-week-chip">{{ currentProgramWeekLabel() }}</p>
+      <button type="button" (click)="openProgramBlockModal()">Start new Program Block</button>
+    </div>
+
     <div class="meta-actions">
       <button type="button" (click)="copyLastWeek()">Copy last week</button>
+      <label class="history-scope-toggle">
+        <input
+          type="checkbox"
+          name="showAllProgramBlockHistory"
+          [ngModel]="showAllProgramBlockHistory()"
+          (ngModelChange)="showAllProgramBlockHistory.set($event)"
+        />
+        Show movement history from all Program Blocks
+      </label>
       <p class="copy-message" *ngIf="copiedFromDate()">
-        Copied {{ trainingDayLabels[trainingDay()] }} from {{ copiedFromDate() }}.
+        {{ copyWeekMessage() }} Source date: {{ copiedFromDate() }}.
       </p>
     </div>
 
@@ -47,10 +75,7 @@
       ></textarea>
     </label>
 
-    <section
-      class="block"
-      *ngFor="let block of blocks; trackBy: trackById"
-    >
+    <section class="block" *ngFor="let block of blocks; trackBy: trackById">
       <div class="block-header">
         <label>
           Block name
@@ -64,10 +89,7 @@
         <button type="button" (click)="removeBlock(block.id)">Remove block</button>
       </div>
 
-      <article
-        class="movement-row"
-        *ngFor="let movement of block.movements; trackBy: trackById"
-      >
+      <article class="movement-row" *ngFor="let movement of block.movements; trackBy: trackById">
         <div class="movement-main">
           <label>
             Movement
@@ -175,7 +197,7 @@
   </datalist>
 
   <section class="recent-history" *ngIf="recentSessionsForDay().length > 0">
-    <h2>Recent {{ trainingDayLabels[trainingDay()] }} History</h2>
+    <h2>Recent {{ trainingDayLabels[trainingDay()] }} History • {{ selectedProgramBlockName() }}</h2>
     <article class="recent-session" *ngFor="let session of recentSessionsForDay(); trackBy: trackById">
       <h3>{{ session.date }}</h3>
       <p *ngIf="session.notes">{{ session.notes }}</p>
@@ -188,3 +210,55 @@
     </article>
   </section>
 </section>
+
+<div class="program-block-modal-backdrop" *ngIf="isProgramBlockModalOpen()">
+  <section class="program-block-modal" role="dialog" aria-modal="true" aria-label="Create Program Block">
+    <header>
+      <h2>Start new Program Block</h2>
+      <p>Set your movement plan and week target for each training day.</p>
+    </header>
+
+    <label>
+      Program Block name
+      <input
+        type="text"
+        name="modalProgramBlockName"
+        [ngModel]="modalProgramBlockName()"
+        (ngModelChange)="modalProgramBlockName.set($event)"
+        required
+      />
+    </label>
+
+    <label>
+      Number of weeks
+      <input
+        type="number"
+        min="1"
+        name="modalProgramBlockTotalWeeks"
+        [ngModel]="modalProgramBlockTotalWeeks()"
+        (ngModelChange)="modalProgramBlockTotalWeeks.set($event)"
+        required
+      />
+    </label>
+
+    <section class="template-grid">
+      <label *ngFor="let option of trainingDayOptions">
+        {{ option.label }} movements
+        <textarea
+          [name]="'template-' + option.value"
+          [ngModel]="modalMovementTemplates()[option.value]"
+          (ngModelChange)="onModalTemplateChange(option.value, $event)"
+          rows="3"
+          placeholder="One per line or comma-separated"
+        ></textarea>
+      </label>
+    </section>
+
+    <div class="modal-actions">
+      <button type="button" (click)="closeProgramBlockModal()" [disabled]="isCreatingProgramBlock()">Cancel</button>
+      <button type="button" (click)="createProgramBlockFromModal()" [disabled]="isCreatingProgramBlock()">
+        {{ isCreatingProgramBlock() ? 'Creating...' : 'Create Program Block' }}
+      </button>
+    </div>
+  </section>
+</div>

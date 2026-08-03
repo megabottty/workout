@@ -5,14 +5,28 @@
   </div>
   <p class="subtitle">Track each week across your two lower and two upper sessions.</p>
 
+  <label class="program-block-filter" *ngIf="programBlockOptions().length > 0">
+    Program Block
+    <select
+      name="programBlockFilter"
+      [ngModel]="selectedProgramBlockFilter()"
+      (ngModelChange)="onProgramBlockFilterChange($event)"
+    >
+      <option value="all">All Program Blocks</option>
+      <option *ngFor="let option of programBlockOptions()" [value]="option.id">
+        {{ option.name }}
+      </option>
+    </select>
+  </label>
+
   <p *ngIf="isLoading()">Loading history...</p>
   <p class="error-message" *ngIf="errorMessage()">{{ errorMessage() }}</p>
 
-  <p *ngIf="!isLoading() && !errorMessage() && weekGroups().length === 0">
+  <p *ngIf="!isLoading() && !errorMessage() && filteredWeekGroups().length === 0">
     No workouts saved yet. Log a workout first to start tracking progress.
   </p>
 
-  <section class="week" *ngFor="let week of weekGroups(); trackBy: trackWeek" [attr.id]="weekElementId(week)">
+  <section class="week" *ngFor="let week of filteredWeekGroups(); trackBy: trackWeek" [attr.id]="weekElementId(week)">
     <header class="week-header">
       <div>
         <h2>{{ week.weekLabel }}</h2>
@@ -60,6 +74,7 @@
           <article class="session" *ngFor="let session of pagedSessionsForDay(week, selectedDayForWeek(week)); trackBy: trackSession">
             <header>
               <h4>{{ session.date }}</h4>
+              <p class="program-block-label">{{ session.programBlockName }}</p>
               <p *ngIf="session.notes">{{ session.notes }}</p>
             </header>
 

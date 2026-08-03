@@ -26,8 +26,22 @@ describe('WorkoutLogComponent', () => {
           provide: WorkoutStorageService,
           useValue: {
             getSessions: jasmine.createSpy('getSessions').and.resolveTo([makeSession()]),
+            getProgramBlockDefinitions: jasmine.createSpy('getProgramBlockDefinitions').and.resolveTo([]),
             getSessionByDateAndDay: jasmine.createSpy('getSessionByDateAndDay').and.resolveTo(null),
             saveSession: jasmine.createSpy('saveSession').and.resolveTo(null),
+            saveProgramBlockDefinition: jasmine.createSpy('saveProgramBlockDefinition').and.callFake(async (_userId: string, input: { id: string; name: string; totalWeeks: number; }) => ({
+              id: input.id,
+              name: input.name,
+              totalWeeks: input.totalWeeks,
+              templatesByDay: {
+                'lower-a': [{ movementName: 'Back squat' }],
+                'upper-a': [{ movementName: 'Bench press' }],
+                'lower-b': [{ movementName: 'Deadlift' }],
+                'upper-b': [{ movementName: 'Pull up' }],
+              },
+              createdAt: '2026-07-17T00:00:00.000Z',
+              updatedAt: '2026-07-17T00:00:00.000Z',
+            })),
           },
         },
       ],
@@ -97,6 +111,31 @@ describe('WorkoutLogComponent', () => {
     expect(history[1].trainingDay).toBe('upper-a');
   });
 
+  it('scopes movement history to the selected program block by default', () => {
+    component.allSessions.set([
+      makeSession({
+        id: 'same-block',
+        date: '2026-07-17',
+        trainingDay: 'lower-a',
+        programBlockId: 'block-1',
+        programBlockName: 'Program Block 1',
+      }),
+      makeSession({
+        id: 'other-block',
+        date: '2026-07-10',
+        trainingDay: 'lower-a',
+        programBlockId: 'block-2',
+        programBlockName: 'Program Block 2',
+      }),
+    ]);
+
+    component.selectedProgramBlockId.set('block-1');
+    expect(component.movementHistoryFor('Back squat').length).toBe(1);
+
+    component.showAllProgramBlockHistory.set(true);
+    expect(component.movementHistoryFor('Back squat').length).toBe(2);
+  });
+
   it('autofills empty sibling set loads and preserves edited set loads', () => {
     const movement = {
       id: 'move-1',
@@ -117,6 +156,22 @@ describe('WorkoutLogComponent', () => {
       { setNumber: 3, reps: null, load: 205 },
     ]);
   });
+
+  it('creates a new program block from modal input', async () => {
+    component.openProgramBlockModal();
+    component.modalProgramBlockName.set('Strength Block');
+    component.modalProgramBlockTotalWeeks.set(6);
+    component.onModalTemplateChange('lower-a', 'Back squat');
+    component.onModalTemplateChange('upper-a', 'Bench press');
+    component.onModalTemplateChange('lower-b', 'Deadlift');
+    component.onModalTemplateChange('upper-b', 'Pull up');
+
+    await component.createProgramBlockFromModal();
+
+    expect(component.selectedProgramBlockName()).toBe('Strength Block');
+    expect(component.currentProgramWeekLabel()).toBe('Week 1 of 6');
+    expect(component.isProgramBlockModalOpen()).toBeFalse();
+  });
 });
 
 function makeSession(overrides?: {
@@ -126,6 +181,8 @@ function makeSession(overrides?: {
   movementName?: string;
   blockName?: string;
   notes?: string;
+  programBlockId?: string;
+  programBlockName?: string;
 }): WorkoutSession {
   const date = overrides?.date ?? '2026-07-17';
   const trainingDay = overrides?.trainingDay ?? 'lower-a';
@@ -137,6 +194,8 @@ function makeSession(overrides?: {
     id: overrides?.id ?? 'prev',
     date,
     trainingDay,
+    programBlockId: overrides?.programBlockId ?? 'block-1',
+    programBlockName: overrides?.programBlockName ?? 'Program Block 1',
     notes: '',
     blocks: [
       {

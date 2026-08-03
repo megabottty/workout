@@ -26,6 +26,19 @@
   color: #4a5568;
 }
 
+.program-block-filter {
+  display: grid;
+  gap: 0.25rem;
+  max-width: 320px;
+}
+
+.program-block-filter select {
+  border: 1px solid #d0d7e2;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+}
+
 .week {
   border: 1px solid #e5eaf1;
   border-radius: 1rem;
@@ -137,6 +150,13 @@ h3,
 h4,
 h5 {
   margin: 0;
+}
+
+.program-block-label {
+  margin: 0.2rem 0 0;
+  color: #334155;
+  font-size: 0.88rem;
+  font-weight: 600;
 }
 
 .block h5 {

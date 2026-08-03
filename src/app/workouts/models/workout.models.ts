@@ -23,8 +23,23 @@ export interface WorkoutSession {
   id: string;
   date: string;
   trainingDay: TrainingDay;
+  programBlockId: string;
+  programBlockName: string;
   notes: string;
   blocks: WorkoutBlock[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProgramBlockTemplateMovement {
+  movementName: string;
+}
+
+export interface ProgramBlockDefinition {
+  id: string;
+  name: string;
+  totalWeeks: number;
+  templatesByDay: Record<TrainingDay, ProgramBlockTemplateMovement[]>;
   createdAt: string;
   updatedAt: string;
 }
