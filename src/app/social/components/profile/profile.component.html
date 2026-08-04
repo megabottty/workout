@@ -1,0 +1,33 @@
+<section class="profile-page">
+  <h2>My Profile</h2>
+
+  @if (profile(); as p) {
+    <div class="avatar-preview">
+      <span class="avatar">{{ p.avatarInitials }}</span>
+      <p class="display-name-preview">{{ p.displayName }}</p>
+    </div>
+  }
+
+  <div class="form-group">
+    <label for="displayName">Display Name</label>
+    <input
+      id="displayName"
+      type="text"
+      [ngModel]="displayNameInput()"
+      (ngModelChange)="displayNameInput.set($event)"
+      placeholder="e.g. Megan 💪"
+      maxlength="40"
+    />
+  </div>
+
+  @if (errorMessage()) {
+    <p class="error-msg">{{ errorMessage() }}</p>
+  }
+  @if (successMessage()) {
+    <p class="success-msg">{{ successMessage() }}</p>
+  }
+
+  <button type="button" class="btn-primary" (click)="saveProfile()" [disabled]="isSaving()">
+    {{ isSaving() ? 'Saving…' : 'Save Profile' }}
+  </button>
+</section>

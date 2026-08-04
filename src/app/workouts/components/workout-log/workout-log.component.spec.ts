@@ -4,6 +4,7 @@ import { User } from '@angular/fire/auth';
 import { RouterTestingModule } from '@angular/router/testing';
 
 import { AuthService } from '../../../auth/services/auth.service';
+import { SocialStorageService } from '../../../social/services/social-storage.service';
 import { WorkoutSession } from '../../models/workout.models';
 import { WorkoutStorageService } from '../../services/workout-storage.service';
 import { WorkoutLogComponent } from './workout-log.component';
@@ -42,6 +43,13 @@ describe('WorkoutLogComponent', () => {
               createdAt: '2026-07-17T00:00:00.000Z',
               updatedAt: '2026-07-17T00:00:00.000Z',
             })),
+          },
+        },
+        {
+          provide: SocialStorageService,
+          useValue: {
+            getProfile: jasmine.createSpy('getProfile').and.resolveTo(null),
+            shareWorkout: jasmine.createSpy('shareWorkout').and.resolveTo({}),
           },
         },
       ],
@@ -136,8 +144,37 @@ describe('WorkoutLogComponent', () => {
     expect(component.movementHistoryFor('Back squat').length).toBe(2);
   });
 
-  it('autofills empty sibling set loads and preserves edited set loads', () => {
-    const movement = {
+  it('syncs the first load across an empty movement', () => {
+    const movement: {
+      id: string;
+      movementName: string;
+      setEntries: Array<{ setNumber: number; reps: number | null; load: number | null }>;
+      notes: string;
+    } = {
+      id: 'move-1',
+      movementName: 'Back squat',
+      setEntries: [
+        { setNumber: 1, reps: null, load: null },
+        { setNumber: 2, reps: null, load: null },
+      ],
+      notes: '',
+    };
+
+    component.onSetLoadChange(movement, 1, 185);
+
+    expect(movement.setEntries).toEqual([
+      { setNumber: 1, reps: null, load: 185 },
+      { setNumber: 2, reps: null, load: 185 },
+    ]);
+  });
+
+  it('preserves custom set loads once a movement already has loads', () => {
+    const movement: {
+      id: string;
+      movementName: string;
+      setEntries: Array<{ setNumber: number; reps: number | null; load: number | null }>;
+      notes: string;
+    } = {
       id: 'move-1',
       movementName: 'Back squat',
       setEntries: [
@@ -149,10 +186,11 @@ describe('WorkoutLogComponent', () => {
     };
 
     component.onSetLoadChange(movement, 1, 185);
+    component.onSetLoadChange(movement, 2, 195);
 
     expect(movement.setEntries).toEqual([
       { setNumber: 1, reps: null, load: 185 },
-      { setNumber: 2, reps: null, load: 185 },
+      { setNumber: 2, reps: null, load: 195 },
       { setNumber: 3, reps: null, load: 205 },
     ]);
   });

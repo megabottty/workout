@@ -1,0 +1,214 @@
+:host { display: block; }
+
+.feed-page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+
+  h2 { margin: 0 0 1.5rem; font-size: 1.4rem; }
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.setup-nudge p { margin: 0; font-size: 0.9rem; a { color: #2563eb; } }
+
+.loading, .empty-state {
+  text-align: center;
+  color: #64748b;
+  padding: 2rem;
+  p { margin: 0.25rem 0; }
+  a { color: #2563eb; }
+}
+
+.feed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.workout-card {
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #4a90d9;
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.875rem;
+    flex-shrink: 0;
+  }
+
+  .card-meta {
+    display: flex;
+    flex-direction: column;
+    strong { font-size: 0.95rem; }
+    .meta-secondary { font-size: 0.78rem; color: #64748b; }
+  }
+
+  .caption {
+    font-size: 0.9rem;
+    color: #374151;
+    margin: 0 0 0.75rem;
+  }
+}
+
+.toggle-details {
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 0.75rem;
+  display: block;
+}
+
+.workout-details {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+
+  .block-section {
+    margin-bottom: 0.75rem;
+    &:last-child { margin-bottom: 0; }
+
+    h4 {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #374151;
+      margin: 0 0 0.4rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+  }
+
+  .movement-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem;
+    margin-bottom: 0.3rem;
+    font-size: 0.85rem;
+
+    .movement-name { font-weight: 600; color: #1e293b; }
+    .sets-summary { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+    .set-chip {
+      background: #e0f2fe;
+      color: #0369a1;
+      border-radius: 4px;
+      padding: 0.1rem 0.4rem;
+      font-size: 0.75rem;
+    }
+  }
+}
+
+.reactions-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.reaction-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  transition: transform 0.1s;
+
+  &:hover { transform: scale(1.15); background: #e0f2fe; border-color: #bae6fd; }
+  &.reacted { background: #dbeafe; border-color: #93c5fd; }
+
+  .reaction-count {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #374151;
+  }
+}
+
+.comments-section {
+  border-top: 1px solid #f0f4f8;
+  padding-top: 0.75rem;
+}
+
+.toggle-comments {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 0.5rem;
+}
+
+.comments-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+}
+
+.comment-item {
+  display: flex;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  padding: 0.25rem 0;
+
+  .comment-author { font-weight: 700; flex-shrink: 0; }
+  .comment-text { color: #374151; }
+}
+
+.no-comments { font-size: 0.8rem; color: #94a3b8; padding: 0.25rem 0; }
+
+.add-comment {
+  display: flex;
+  gap: 0.4rem;
+
+  input {
+    flex: 1;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    font-size: 0.875rem;
+  }
+}
+
+.btn-post {
+  padding: 0.45rem 0.9rem;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  &:hover { background: #1d4ed8; }
+}
+
+.error-msg { color: #c0392b; font-size: 0.875rem; margin-bottom: 0.75rem; }
+
+@media (max-width: 480px) {
+  .card-meta .meta-secondary { font-size: 0.72rem; }
+}

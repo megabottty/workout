@@ -306,6 +306,17 @@ button {
 }
 
 @media (max-width: 640px) {
+  .program-block-modal-backdrop {
+    padding: 0.5rem;
+  }
+
+  .program-block-modal {
+    width: 100%;
+    max-height: calc(100vh - 1rem);
+    padding: 0.85rem;
+    border-radius: 0.75rem;
+  }
+
   .log-workout {
     padding: 0.9rem;
   }
@@ -352,4 +363,55 @@ button {
     flex-direction: column;
     align-items: stretch;
   }
+
+  .template-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.share-panel {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  display: grid;
+  gap: 0.75rem;
+
+  h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #166534;
+  }
+
+  textarea {
+    width: 100%;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+    resize: vertical;
+    box-sizing: border-box;
+  }
+}
+
+.btn-share {
+  padding: 0.55rem 1.25rem;
+  background: #059669;
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  align-self: flex-start;
+
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+  &:hover:not(:disabled) { background: #047857; }
+}
+
+.share-message {
+  color: #166534;
+  font-size: 0.875rem;
+  margin: 0;
 }

@@ -178,6 +178,11 @@ ul {
 }
 
 @media (max-width: 640px) {
+  .program-block-filter {
+    max-width: none;
+    width: 100%;
+  }
+
   .history-toolbar,
   .week-header,
   .day-card__header,
@@ -201,6 +206,11 @@ ul {
     grid-template-columns: 1fr;
   }
 
+  .count-pill {
+    white-space: normal;
+    align-self: flex-start;
+  }
+
   .week {
     padding: 0.85rem;
     border-radius: 0.85rem;
@@ -210,5 +220,9 @@ ul {
   .day-detail-card,
   .session {
     padding: 0.65rem;
+  }
+
+  .session ul {
+    padding-left: 1rem;
   }
 }

@@ -1,0 +1,91 @@
+<section class="friends-page">
+  <h2>Friends</h2>
+
+  @if (errorMessage()) {
+    <p class="error-msg">{{ errorMessage() }}</p>
+  }
+
+  <!-- Incoming friend requests -->
+  @if (incomingRequests().length > 0) {
+    <div class="card incoming-requests">
+      <h3>Pending Requests <span class="badge">{{ incomingRequests().length }}</span></h3>
+      <ul class="request-list">
+        @for (req of incomingRequests(); track req.id) {
+          <li class="request-item">
+            <span class="avatar-sm">{{ req.fromDisplayName.slice(0, 2).toUpperCase() }}</span>
+            <span class="req-name">{{ req.fromDisplayName }} wants to be your friend</span>
+            <div class="request-actions">
+              <button class="btn-accept" (click)="respond(req, 'accepted')" [disabled]="isProcessing(req.id)">
+                ✓ Accept
+              </button>
+              <button class="btn-decline" (click)="respond(req, 'declined')" [disabled]="isProcessing(req.id)">
+                ✕ Decline
+              </button>
+            </div>
+          </li>
+        }
+      </ul>
+    </div>
+  }
+
+  <!-- Find friends -->
+  <div class="card search-card">
+    <h3>Find Friends</h3>
+    <p class="hint">Search by display name (min 2 characters). Friends must have set up a profile to appear.</p>
+    <div class="search-row">
+      <input
+        type="text"
+        placeholder="Search by name…"
+        [ngModel]="searchQuery()"
+        (ngModelChange)="searchQuery.set($event)"
+        (keyup.enter)="search()"
+      />
+      <button class="btn-primary" (click)="search()" [disabled]="isSearching() || searchQuery().trim().length < 2">
+        {{ isSearching() ? 'Searching…' : 'Search' }}
+      </button>
+    </div>
+
+    @if (searchResults().length > 0) {
+      <ul class="result-list">
+        @for (profile of searchResults(); track profile.uid) {
+          <li class="result-item">
+            <span class="avatar-sm">{{ profile.avatarInitials }}</span>
+            <span class="result-name">{{ profile.displayName }}</span>
+            <span class="result-action">
+              @if (isAlreadyFriend(profile.uid)) {
+                <span class="chip-friend">Already friends 🤝</span>
+              } @else if (isPending(profile.uid)) {
+                <span class="chip-pending">Request sent ⏳</span>
+              } @else {
+                <button class="btn-add" (click)="addFriend(profile)" [disabled]="isProcessing(profile.uid)">
+                  + Add Friend
+                </button>
+              }
+            </span>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+
+  <!-- Friends list -->
+  <div class="card friends-list-card">
+    <h3>My Friends ({{ friends().length }})</h3>
+    @if (friends().length === 0) {
+      <p class="empty-state">No friends yet — search for someone above! 🔍</p>
+    } @else {
+      <ul class="friends-list">
+        @for (req of friends(); track req.id) {
+          <li class="friend-item">
+            <span class="avatar-sm">{{ req.fromDisplayName.slice(0, 2).toUpperCase() }}</span>
+            <span>{{ friendDisplayName(req) }}</span>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+
+  <p class="profile-link-hint">
+    Make sure your <a routerLink="/profile">profile</a> is set up so friends can find you too!
+  </p>
+</section>

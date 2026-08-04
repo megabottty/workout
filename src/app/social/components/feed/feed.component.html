@@ -1,0 +1,126 @@
+<section class="feed-page">
+  <h2>Friends Feed</h2>
+
+  @if (errorMessage()) {
+    <p class="error-msg">{{ errorMessage() }}</p>
+  }
+
+  @if (!myProfile()) {
+    <div class="setup-nudge card">
+      <p>👋 Set up your <a routerLink="/profile">profile</a> to appear in your friends' feed and to react & comment.</p>
+    </div>
+  }
+
+  @if (isLoading()) {
+    <div class="loading">Loading feed…</div>
+  } @else if (feed().length === 0) {
+    <div class="empty-state card">
+      <p>🏋️ No workouts in your feed yet.</p>
+      <p>Add some <a routerLink="/friends">friends</a> and ask them to share their workouts!</p>
+    </div>
+  } @else {
+    <ul class="feed-list">
+      @for (workout of feed(); track workout.id) {
+        <li class="workout-card card">
+          <!-- Header -->
+          <div class="card-header">
+            <span class="avatar">{{ workout.ownerDisplayName.slice(0,2).toUpperCase() }}</span>
+            <div class="card-meta">
+              <strong>{{ workout.ownerDisplayName }}</strong>
+              <span class="meta-secondary">
+                {{ trainingDayLabel(workout.session.trainingDay) }} &middot;
+                {{ workout.session.programBlockName }} &middot;
+                {{ formatDate(workout.session.date) }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Caption -->
+          @if (workout.caption) {
+            <p class="caption">{{ workout.caption }}</p>
+          }
+
+          <!-- Workout summary (expandable) -->
+          <button class="toggle-details" type="button" (click)="toggleWorkoutDetails(workout.id)">
+            {{ isWorkoutExpanded(workout.id) ? '▲ Hide workout details' : '▼ View workout details' }}
+          </button>
+
+          @if (isWorkoutExpanded(workout.id)) {
+            <div class="workout-details">
+              @for (block of workout.session.blocks; track block.id) {
+                <div class="block-section">
+                  <h4>{{ block.name }}</h4>
+                  @for (movement of block.movements; track movement.id) {
+                    <div class="movement-row">
+                      <span class="movement-name">{{ movement.movementName }}</span>
+                      <span class="sets-summary">
+                        @for (set of movement.setEntries; track set.setNumber) {
+                          <span class="set-chip">
+                            {{ set.reps ?? '—' }} reps
+                            @if (set.load !== null) { &#64; {{ set.load }}kg }
+                          </span>
+                        }
+                      </span>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+
+          <!-- Reactions -->
+          <div class="reactions-bar">
+            @for (emoji of reactionEmojis; track emoji) {
+              <button
+                class="reaction-btn"
+                [class.reacted]="didIReact(workout, emoji)"
+                type="button"
+                (click)="toggleReaction(workout, emoji)"
+              >
+                {{ emoji }}
+                @if (reactionCount(workout, emoji) > 0) {
+                  <span class="reaction-count">{{ reactionCount(workout, emoji) }}</span>
+                }
+              </button>
+            }
+          </div>
+
+          <!-- Comments toggle -->
+          <div class="comments-section">
+            <button class="toggle-comments" type="button" (click)="toggleComments(workout.id)">
+              💬 {{ workout.comments.length }} comment{{ workout.comments.length !== 1 ? 's' : '' }}
+              {{ isCommentsExpanded(workout.id) ? '▲' : '▼' }}
+            </button>
+
+            @if (isCommentsExpanded(workout.id)) {
+              <ul class="comments-list">
+                @for (comment of workout.comments; track comment.id) {
+                  <li class="comment-item">
+                    <span class="comment-author">{{ comment.displayName }}</span>
+                    <span class="comment-text">{{ comment.text }}</span>
+                  </li>
+                }
+                @if (workout.comments.length === 0) {
+                  <li class="no-comments">No comments yet. Be the first!</li>
+                }
+              </ul>
+
+              @if (myProfile()) {
+                <div class="add-comment">
+                  <input
+                    type="text"
+                    placeholder="Write a comment…"
+                    [ngModel]="(commentInputs()[workout.id] || '')"
+                    (ngModelChange)="setCommentInput(workout.id, $event)"
+                    (keyup.enter)="submitComment(workout)"
+                  />
+                  <button type="button" class="btn-post" (click)="submitComment(workout)">Post</button>
+                </div>
+              }
+            }
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</section>

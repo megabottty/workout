@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 
 import { AuthService } from '../../../auth/services/auth.service';
+import { SocialStorageService } from '../../../social/services/social-storage.service';
 import { ProgramBlockDefinition, TrainingDay, WorkoutSession } from '../../models/workout.models';
 import { WorkoutStorageService } from '../../services/workout-storage.service';
 import {
@@ -82,6 +83,12 @@ export class WorkoutLogComponent {
   readonly copyWeekMessage = signal('');
   readonly allSessions = signal<WorkoutSession[]>([]);
   readonly programBlockDefinitions = signal<ProgramBlockDefinition[]>([]);
+
+  // Share to feed
+  readonly shareCaption = signal('');
+  readonly isSharing = signal(false);
+  readonly shareMessage = signal('');
+  readonly lastSavedSession = signal<WorkoutSession | null>(null);
 
   readonly isProgramBlockModalOpen = signal(false);
   readonly isCreatingProgramBlock = signal(false);
@@ -248,7 +255,8 @@ export class WorkoutLogComponent {
   constructor(
     private readonly workoutStorage: WorkoutStorageService,
     private readonly authService: AuthService,
-    private readonly router: Router
+    private readonly router: Router,
+    private readonly socialStorage: SocialStorageService,
   ) {
     effect(() => {
       const user = this.authService.user();
@@ -325,7 +333,7 @@ export class WorkoutLogComponent {
 
     try {
       const userId = this.requireUserId();
-      await this.workoutStorage.saveSession(userId, {
+      const saved = await this.workoutStorage.saveSession(userId, {
         date: this.workoutDate(),
         trainingDay: this.trainingDay(),
         programBlockId: this.selectedProgramBlockId(),
@@ -350,8 +358,10 @@ export class WorkoutLogComponent {
           .filter((block) => block.movements.length > 0),
       });
 
+      this.lastSavedSession.set(saved);
       this.isEditingExisting.set(true);
       this.saveMessage.set(`${wasEditingExisting ? 'Updated' : 'Saved'} workout for ${this.workoutDate()}.`);
+      this.shareMessage.set('');
       await this.reloadSessionsCache(userId);
     } catch (error: unknown) {
       this.errorMessage.set(error instanceof Error ? error.message : 'Unable to save workout.');
@@ -360,6 +370,33 @@ export class WorkoutLogComponent {
 
   trackById(_index: number, item: { id: string }): string {
     return item.id;
+  }
+
+  async shareWorkout(): Promise<void> {
+    const session = this.lastSavedSession();
+    if (!session) return;
+
+    const user = this.authService.user();
+    if (!user) return;
+
+    this.isSharing.set(true);
+    this.shareMessage.set('');
+    this.errorMessage.set('');
+
+    try {
+      const profile = await this.socialStorage.getProfile(user.uid);
+      if (!profile) {
+        this.errorMessage.set('Please set up your profile before sharing. Go to Profile in the nav.');
+        return;
+      }
+      await this.socialStorage.shareWorkout(user.uid, profile.displayName, session, this.shareCaption());
+      this.shareMessage.set('Shared to your friends feed! 🎉');
+      this.shareCaption.set('');
+    } catch (err) {
+      this.errorMessage.set(err instanceof Error ? err.message : 'Could not share workout.');
+    } finally {
+      this.isSharing.set(false);
+    }
   }
 
   movementNames(block: { movements: Array<{ movementName: string }> }): string {
@@ -524,8 +561,15 @@ export class WorkoutLogComponent {
       return;
     }
 
+    const hasOtherLoadedSets = movement.setEntries.some(
+      (setEntry) => setEntry.setNumber !== setNumber && setEntry.load !== null
+    );
+    if (hasOtherLoadedSets) {
+      return;
+    }
+
     for (const setEntry of movement.setEntries) {
-      if (setEntry.setNumber !== setNumber && setEntry.load === null) {
+      if (setEntry.setNumber !== setNumber) {
         setEntry.load = nextLoad;
       }
     }

@@ -192,6 +192,22 @@
   <p class="error-message" *ngIf="errorMessage()">{{ errorMessage() }}</p>
   <p class="save-message" *ngIf="saveMessage()">{{ saveMessage() }}</p>
 
+  <!-- Share to friends feed -->
+  <div class="share-panel" *ngIf="isEditingExisting()">
+    <h3>Share this workout 💪</h3>
+    <textarea
+      name="shareCaption"
+      [ngModel]="shareCaption()"
+      (ngModelChange)="shareCaption.set($event)"
+      rows="2"
+      placeholder="Add a caption (optional)… e.g. 'New PR on deadlifts! 🔥'"
+    ></textarea>
+    <button type="button" class="btn-share" (click)="shareWorkout()" [disabled]="isSharing()">
+      {{ isSharing() ? 'Sharing…' : '📤 Share to Friends Feed' }}
+    </button>
+    <p class="share-message" *ngIf="shareMessage()">{{ shareMessage() }}</p>
+  </div>
+
   <datalist id="movement-options">
     <option *ngFor="let movementName of movementOptions()" [value]="movementName"></option>
   </datalist>

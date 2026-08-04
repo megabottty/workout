@@ -1,12 +1,57 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // ── Private workout data ─────────────────────────────────────────────────
     match /users/{userId}/workouts/{workoutId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
     match /users/{userId}/programBlocks/{programBlockId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Profile: owner writes; anyone authenticated reads (needed for friend UX)
+    match /users/{userId}/profile/data {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── Public profile index for friend search ───────────────────────────────
+    match /publicProfiles/{uid} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // ── Friend requests ──────────────────────────────────────────────────────
+    // Doc ID is "{fromUid}_{toUid}"
+    match /friendRequests/{requestId} {
+      allow read: if request.auth != null
+                  && (resource.data.fromUid == request.auth.uid
+                      || resource.data.toUid  == request.auth.uid);
+      // Create: must be sender
+      allow create: if request.auth != null
+                    && request.resource.data.fromUid == request.auth.uid;
+      // Update (accept / decline): must be recipient, may only change status
+      allow update: if request.auth != null
+                    && resource.data.toUid == request.auth.uid
+                    && request.resource.data.keys().hasOnly(['status', 'updatedAt'])
+                    && request.resource.data.status in ['accepted', 'declined'];
+    }
+
+    // ── Shared workouts ──────────────────────────────────────────────────────
+    match /sharedWorkouts/{workoutId} {
+      // Owner can create/update own shares
+      allow create: if request.auth != null
+                    && request.resource.data.ownerUid == request.auth.uid;
+
+      // Any authenticated user can read — feed filtering is done client-side
+      // to friends only; the rule is permissive to allow cross-uid reads.
+      allow read: if request.auth != null;
+
+      // Owner can update fully; others may only update reactions and comments
+      allow update: if request.auth != null
+                    && (resource.data.ownerUid == request.auth.uid
+                        || request.resource.data.keys().hasOnly(['reactions', 'comments', 'updatedAt']));
     }
   }
 }

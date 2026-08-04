@@ -3,8 +3,11 @@
     <h1>Workout Progress Tracker</h1>
     <ng-container *ngIf="user() as user; else signedOutNav">
       <nav>
-        <a routerLink="/workouts/log" routerLinkActive="active">Log Workout</a>
-        <a routerLink="/history" routerLinkActive="active">Weekly History</a>
+        <a routerLink="/workouts/log" routerLinkActive="active">Log</a>
+        <a routerLink="/history" routerLinkActive="active">History</a>
+        <a routerLink="/feed" routerLinkActive="active">Feed 🔥</a>
+        <a routerLink="/friends" routerLinkActive="active">Friends</a>
+        <a routerLink="/profile" routerLinkActive="active">Profile</a>
         <button type="button" (click)="signOut()">Sign out</button>
       </nav>
       <p class="signed-in-as">Signed in as {{ user.email }}</p>
