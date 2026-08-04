@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, computed } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -21,6 +21,7 @@ export class FriendsComponent implements OnInit {
 
   readonly incomingRequests = signal<FriendRequest[]>([]);
   readonly friends = signal<FriendRequest[]>([]);
+  readonly friendNamesByUid = signal<Record<string, string>>({});
 
   readonly pendingSentIds = signal<Set<string>>(new Set());
   readonly processingIds = signal<Set<string>>(new Set());
@@ -45,8 +46,23 @@ export class FriendsComponent implements OnInit {
       this.socialStorage.getIncomingRequests(this.myUid),
       this.socialStorage.getAcceptedFriends(this.myUid),
     ]);
+
+    const friendUids = Array.from(new Set(
+      accepted.map((request) => this.socialStorage.friendUidFrom(request, this.myUid))
+    ));
+    const profiles = await Promise.all(
+      friendUids.map(async (uid) => ({ uid, profile: await this.socialStorage.getProfile(uid) }))
+    );
+    const namesByUid = profiles.reduce<Record<string, string>>((result, entry) => {
+      if (entry.profile?.displayName) {
+        result[entry.uid] = entry.profile.displayName;
+      }
+      return result;
+    }, {});
+
     this.incomingRequests.set(incoming);
     this.friends.set(accepted);
+    this.friendNamesByUid.set(namesByUid);
   }
 
   async search(): Promise<void> {
@@ -99,7 +115,8 @@ export class FriendsComponent implements OnInit {
   }
 
   friendDisplayName(request: FriendRequest): string {
-    return request.fromUid === this.myUid ? request.toUid : request.fromDisplayName;
+    const friendUid = this.socialStorage.friendUidFrom(request, this.myUid);
+    return this.friendNamesByUid()[friendUid] ?? request.fromDisplayName ?? friendUid;
   }
 
   isProcessing(id: string): boolean {

@@ -4,6 +4,7 @@
   max-width: 640px;
   margin: 0 auto;
   padding: 1.5rem 1rem;
+  overflow-wrap: anywhere;
 
   h2 { margin: 0 0 1.5rem; font-size: 1.4rem; }
 }
@@ -77,6 +78,7 @@
   padding: 0;
   margin-bottom: 0.75rem;
   display: block;
+  min-height: 2.25rem;
 }
 
 .workout-details {
@@ -138,6 +140,7 @@
   font-size: 1rem;
   line-height: 1;
   transition: transform 0.1s;
+  min-height: 2.25rem;
 
   &:hover { transform: scale(1.15); background: #e0f2fe; border-color: #bae6fd; }
   &.reacted { background: #dbeafe; border-color: #93c5fd; }
@@ -162,6 +165,7 @@
   cursor: pointer;
   padding: 0;
   margin-bottom: 0.5rem;
+  min-height: 2.25rem;
 }
 
 .comments-list {
@@ -204,11 +208,41 @@
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
+  min-height: 2.5rem;
   &:hover { background: #1d4ed8; }
 }
 
 .error-msg { color: #c0392b; font-size: 0.875rem; margin-bottom: 0.75rem; }
 
-@media (max-width: 480px) {
+@media (max-width: 640px) {
+  .feed-page {
+    padding: 1rem 0.75rem;
+  }
+
+  .card {
+    padding: 0.95rem;
+  }
+
+  .toggle-details,
+  .toggle-comments {
+    width: 100%;
+    text-align: left;
+    font-size: 0.9rem;
+  }
+
+  .add-comment {
+    flex-direction: column;
+  }
+
+  .add-comment input,
+  .btn-post {
+    width: 100%;
+    font-size: 16px;
+  }
+
+  .reactions-bar {
+    gap: 0.45rem;
+  }
+
   .card-meta .meta-secondary { font-size: 0.72rem; }
 }

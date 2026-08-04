@@ -364,6 +364,12 @@ button {
     align-items: stretch;
   }
 
+  .share-panel,
+  .share-panel textarea,
+  .btn-share {
+    width: 100%;
+  }
+
   .template-grid {
     grid-template-columns: 1fr;
   }

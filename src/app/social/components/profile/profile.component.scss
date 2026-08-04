@@ -76,3 +76,25 @@
   &:disabled { opacity: 0.6; cursor: not-allowed; }
   &:hover:not(:disabled) { background: #1d4ed8; }
 }
+
+@media (max-width: 640px) {
+  .profile-page {
+    padding: 1rem 0.75rem;
+  }
+
+  .avatar-preview {
+    margin-bottom: 1rem;
+    align-items: flex-start;
+  }
+
+  .avatar-preview .display-name-preview {
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+
+  .form-group input,
+  .btn-primary {
+    width: 100%;
+    font-size: 16px;
+  }
+}

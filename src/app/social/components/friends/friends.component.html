@@ -77,7 +77,7 @@
       <ul class="friends-list">
         @for (req of friends(); track req.id) {
           <li class="friend-item">
-            <span class="avatar-sm">{{ req.fromDisplayName.slice(0, 2).toUpperCase() }}</span>
+            <span class="avatar-sm">{{ friendDisplayName(req).slice(0, 2).toUpperCase() }}</span>
             <span>{{ friendDisplayName(req) }}</span>
           </li>
         }

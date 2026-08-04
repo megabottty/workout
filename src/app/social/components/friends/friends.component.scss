@@ -4,6 +4,7 @@
   max-width: 600px;
   margin: 0 auto;
   padding: 1.5rem 1rem;
+  overflow-wrap: anywhere;
 
   h2 { margin: 0 0 1.5rem; font-size: 1.4rem; }
 }
@@ -60,6 +61,10 @@
     border: 1px solid #d0d7de;
     border-radius: 6px;
     font-size: 0.95rem;
+  }
+
+  button {
+    min-height: 2.5rem;
   }
 }
 
@@ -161,7 +166,43 @@
 
 .error-msg { color: #c0392b; font-size: 0.875rem; margin-bottom: 0.75rem; }
 
-@media (max-width: 480px) {
-  .request-item { flex-wrap: wrap; }
-  .request-actions { margin-top: 0.4rem; width: 100%; justify-content: flex-end; }
+@media (max-width: 640px) {
+  .friends-page {
+    padding: 1rem 0.75rem;
+  }
+
+  .card {
+    padding: 0.95rem;
+  }
+
+  .search-row {
+    flex-direction: column;
+  }
+
+  .search-row input,
+  .search-row button,
+  .btn-add,
+  .btn-accept,
+  .btn-decline {
+    width: 100%;
+    font-size: 16px;
+  }
+
+  .request-item,
+  .result-item,
+  .friend-item {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .result-action {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .request-actions {
+    margin-top: 0.4rem;
+    width: 100%;
+    justify-content: stretch;
+  }
 }

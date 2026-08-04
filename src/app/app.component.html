@@ -1,7 +1,7 @@
 <div class="app-shell">
   <header>
     <h1>Workout Progress Tracker</h1>
-    <ng-container *ngIf="user() as user; else signedOutNav">
+    <ng-container *ngIf="user() as user">
       <nav>
         <a routerLink="/workouts/log" routerLinkActive="active">Log</a>
         <a routerLink="/history" routerLinkActive="active">History</a>
@@ -12,11 +12,6 @@
       </nav>
       <p class="signed-in-as">Signed in as {{ user.email }}</p>
     </ng-container>
-    <ng-template #signedOutNav>
-      <nav>
-        <a routerLink="/login" routerLinkActive="active">Sign in</a>
-      </nav>
-    </ng-template>
   </header>
 
   <main>

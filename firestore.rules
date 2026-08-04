@@ -25,16 +25,36 @@ service cloud.firestore {
     // ── Friend requests ──────────────────────────────────────────────────────
     // Doc ID is "{fromUid}_{toUid}"
     match /friendRequests/{requestId} {
-      allow read: if request.auth != null
+      // Allow point-reads for IDs that include the current uid so sender-side
+      // duplicate checks can read non-existent docs safely.
+      allow get: if request.auth != null
+                 && (
+                   (resource != null
+                    && (resource.data.fromUid == request.auth.uid
+                        || resource.data.toUid  == request.auth.uid))
+                   || requestId.matches('^' + request.auth.uid + '_.*')
+                   || requestId.matches('^.*_' + request.auth.uid + '$')
+                 );
+      allow list: if request.auth != null
                   && (resource.data.fromUid == request.auth.uid
                       || resource.data.toUid  == request.auth.uid);
       // Create: must be sender
       allow create: if request.auth != null
-                    && request.resource.data.fromUid == request.auth.uid;
+                    && request.resource.data.fromUid == request.auth.uid
+                    && request.resource.data.toUid != request.auth.uid
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.keys().hasOnly([
+                      'fromUid',
+                      'fromDisplayName',
+                      'toUid',
+                      'status',
+                      'createdAt',
+                      'updatedAt',
+                    ]);
       // Update (accept / decline): must be recipient, may only change status
       allow update: if request.auth != null
                     && resource.data.toUid == request.auth.uid
-                    && request.resource.data.keys().hasOnly(['status', 'updatedAt'])
+                    && request.resource.data.diff(resource.data).changedKeys().hasOnly(['status', 'updatedAt'])
                     && request.resource.data.status in ['accepted', 'declined'];
     }
 

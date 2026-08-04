@@ -8,6 +8,7 @@ html,
 body {
   margin: 0;
   min-height: 100%;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -17,4 +18,5 @@ body {
     radial-gradient(circle at 0% 0%, #dbeafe 0%, transparent 34%),
     radial-gradient(circle at 95% 5%, #ede9fe 0%, transparent 32%),
     #f8fafc;
+  padding-bottom: env(safe-area-inset-bottom);
 }

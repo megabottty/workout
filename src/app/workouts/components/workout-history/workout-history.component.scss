@@ -178,6 +178,16 @@ ul {
 }
 
 @media (max-width: 640px) {
+  .history,
+  .history * {
+    overflow-wrap: anywhere;
+  }
+
+  .history button,
+  .history select {
+    font-size: 16px;
+  }
+
   .program-block-filter {
     max-width: none;
     width: 100%;
