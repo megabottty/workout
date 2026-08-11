@@ -55,7 +55,7 @@ export class ProfileComponent implements OnInit {
     this.successMessage.set('');
 
     try {
-      const saved = await this.socialStorage.savePublicProfile(user.uid, name);
+      const saved = await this.socialStorage.savePublicProfile(user.uid, name, user.email ?? '');
       this.profile.set(saved);
       this.successMessage.set('Profile saved! 🎉');
     } catch (err) {

@@ -19,6 +19,10 @@
   font: inherit;
   color: #1f2937;
   text-decoration: none;
+  min-height: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .subtitle {
@@ -136,6 +140,7 @@
   border-radius: 0.55rem;
   padding: 0.35rem 0.6rem;
   font: inherit;
+  min-height: 2.5rem;
 }
 
 .session {

@@ -20,6 +20,7 @@ h1 {
   margin: 0;
   font-size: 1.65rem;
   color: #111827;
+  overflow-wrap: anywhere;
 }
 
 nav {
@@ -39,6 +40,7 @@ button {
   font: inherit;
   cursor: pointer;
   transition: all 120ms ease-in-out;
+  min-height: 42px;
 }
 
 a:hover,
@@ -80,7 +82,8 @@ button.active {
   }
 
   nav {
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   a,
@@ -88,5 +91,11 @@ button.active {
     width: 100%;
     text-align: center;
     min-height: 44px;
+  }
+}
+
+@media (max-width: 420px) {
+  nav {
+    grid-template-columns: 1fr;
   }
 }

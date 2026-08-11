@@ -54,6 +54,7 @@ export interface StoredWorkoutData {
 export interface UserProfile {
   uid: string;
   displayName: string;
+  email?: string;
   /** Initials shown as avatar, auto-derived from displayName if not set */
   avatarInitials: string;
   createdAt: string;
@@ -66,8 +67,23 @@ export interface FriendRequest {
   id: string;
   fromUid: string;
   fromDisplayName: string;
+  fromEmail?: string;
   toUid: string;
   status: FriendshipStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FriendNotification {
+  id: string;
+  type: 'friend-request';
+  toUid: string;
+  fromUid: string;
+  fromDisplayName: string;
+  fromEmail?: string;
+  requestId: string;
+  message: string;
+  isRead: boolean;
   createdAt: string;
   updatedAt: string;
 }

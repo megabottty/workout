@@ -5,7 +5,7 @@ import { RouterLink } from '@angular/router';
 
 import { AuthService } from '../../../auth/services/auth.service';
 import { SocialStorageService } from '../../services/social-storage.service';
-import { FriendRequest, UserProfile } from '../../../workouts/models/workout.models';
+import { FriendNotification, FriendRequest, UserProfile } from '../../../workouts/models/workout.models';
 
 @Component({
   selector: 'app-friends',
@@ -20,8 +20,10 @@ export class FriendsComponent implements OnInit {
   readonly isSearching = signal(false);
 
   readonly incomingRequests = signal<FriendRequest[]>([]);
+  readonly unreadNotifications = signal<FriendNotification[]>([]);
   readonly friends = signal<FriendRequest[]>([]);
   readonly friendNamesByUid = signal<Record<string, string>>({});
+  readonly incomingByUid = signal<Set<string>>(new Set());
 
   readonly pendingSentIds = signal<Set<string>>(new Set());
   readonly processingIds = signal<Set<string>>(new Set());
@@ -42,8 +44,9 @@ export class FriendsComponent implements OnInit {
 
   private async loadFriendsData(): Promise<void> {
     if (!this.myUid) return;
-    const [incoming, accepted] = await Promise.all([
+    const [incoming, notifications, accepted] = await Promise.all([
       this.socialStorage.getIncomingRequests(this.myUid),
+      this.socialStorage.getUnreadFriendNotifications(this.myUid),
       this.socialStorage.getAcceptedFriends(this.myUid),
     ]);
 
@@ -61,8 +64,10 @@ export class FriendsComponent implements OnInit {
     }, {});
 
     this.incomingRequests.set(incoming);
+    this.unreadNotifications.set(notifications);
     this.friends.set(accepted);
     this.friendNamesByUid.set(namesByUid);
+    this.incomingByUid.set(new Set(incoming.map((request) => request.fromUid)));
   }
 
   async search(): Promise<void> {
@@ -71,7 +76,10 @@ export class FriendsComponent implements OnInit {
     this.isSearching.set(true);
     this.errorMessage.set('');
     try {
-      const results = await this.socialStorage.findProfilesByDisplayName(term);
+      const isEmailLookup = term.includes('@');
+      const results = isEmailLookup
+        ? await this.searchByEmail(term)
+        : await this.socialStorage.findProfilesByDisplayName(term);
       this.searchResults.set(results.filter((r) => r.uid !== this.myUid));
     } catch {
       this.errorMessage.set('Search failed. Please try again.');
@@ -93,7 +101,7 @@ export class FriendsComponent implements OnInit {
     this.processingIds.update((s) => new Set([...s, profile.uid]));
     this.errorMessage.set('');
     try {
-      await this.socialStorage.sendFriendRequest(me.uid, myProfile.displayName, profile.uid);
+      await this.socialStorage.sendFriendRequest(me.uid, myProfile.displayName, profile.uid, me.email ?? '');
       this.pendingSentIds.update((s) => new Set([...s, profile.uid]));
     } catch (err) {
       this.errorMessage.set(err instanceof Error ? err.message : 'Could not send request.');
@@ -106,9 +114,45 @@ export class FriendsComponent implements OnInit {
     this.processingIds.update((s) => new Set([...s, request.id]));
     try {
       await this.socialStorage.respondToFriendRequest(request.id, status);
+      await this.socialStorage.markFriendNotificationsForRequestRead(this.myUid, request.id);
       await this.loadFriendsData();
     } catch (err) {
       this.errorMessage.set(err instanceof Error ? err.message : 'Could not respond to request.');
+    } finally {
+      this.processingIds.update((s) => { const n = new Set(s); n.delete(request.id); return n; });
+    }
+  }
+
+  async markNotificationRead(notificationId: string): Promise<void> {
+    if (!this.myUid) {
+      return;
+    }
+
+    this.processingIds.update((s) => new Set([...s, notificationId]));
+    try {
+      await this.socialStorage.markFriendNotificationRead(this.myUid, notificationId);
+      this.unreadNotifications.update((items) => items.filter((item) => item.id !== notificationId));
+    } catch (err) {
+      this.errorMessage.set(err instanceof Error ? err.message : 'Could not mark notification as read.');
+    } finally {
+      this.processingIds.update((s) => { const n = new Set(s); n.delete(notificationId); return n; });
+    }
+  }
+
+  async removeFriend(request: FriendRequest): Promise<void> {
+    this.processingIds.update((s) => new Set([...s, request.id]));
+    this.errorMessage.set('');
+    try {
+      await this.socialStorage.removeFriend(request.id);
+      await this.loadFriendsData();
+      const friendUid = this.socialStorage.friendUidFrom(request, this.myUid);
+      this.pendingSentIds.update((s) => {
+        const next = new Set(s);
+        next.delete(friendUid);
+        return next;
+      });
+    } catch (err) {
+      this.errorMessage.set(err instanceof Error ? err.message : 'Could not remove friend.');
     } finally {
       this.processingIds.update((s) => { const n = new Set(s); n.delete(request.id); return n; });
     }
@@ -131,5 +175,14 @@ export class FriendsComponent implements OnInit {
     return this.friends().some((r) =>
       r.fromUid === uid || r.toUid === uid
     );
+  }
+
+  hasIncomingPending(uid: string): boolean {
+    return this.incomingByUid().has(uid);
+  }
+
+  private async searchByEmail(email: string): Promise<UserProfile[]> {
+    const profile = await this.socialStorage.findProfileByEmail(email);
+    return profile ? [profile] : [];
   }
 }

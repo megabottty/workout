@@ -11,9 +11,11 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from '@angular/fire/firestore';
 
 import {
+  FriendNotification,
   FriendRequest,
   FriendshipStatus,
   SharedWorkout,
@@ -30,7 +32,7 @@ export class SocialStorageService {
 
   // ─── User Profiles ──────────────────────────────────────────────────────────
 
-  async saveProfile(uid: string, displayName: string): Promise<UserProfile> {
+  async saveProfile(uid: string, displayName: string, email?: string): Promise<UserProfile> {
     const safeUid = this.assertUid(uid);
     const safeName = displayName.trim();
     if (!safeName) throw new Error('Display name is required.');
@@ -47,8 +49,26 @@ export class SocialStorageService {
       updatedAt: now,
     };
 
-    await setDoc(profileRef, profile);
-    return { uid: safeUid, ...profile };
+    const safeEmail = this.normalizeEmail(email);
+
+    await setDoc(profileRef, {
+      ...profile,
+      email: safeEmail,
+      emailLower: safeEmail.toLowerCase(),
+      displayNameLower: safeName.toLowerCase(),
+    });
+
+    const publicRef = doc(this.firestore, `publicProfiles/${safeUid}`);
+    await setDoc(publicRef, {
+      displayName: safeName,
+      displayNameLower: safeName.toLowerCase(),
+      email: safeEmail,
+      emailLower: safeEmail.toLowerCase(),
+      avatarInitials: this.initials(safeName),
+      updatedAt: now,
+    });
+
+    return { uid: safeUid, ...profile, email: safeEmail };
   }
 
   async getProfile(uid: string): Promise<UserProfile | null> {
@@ -60,27 +80,98 @@ export class SocialStorageService {
   }
 
   async findProfilesByDisplayName(searchTerm: string): Promise<UserProfile[]> {
-    // Firestore does not support full-text search; we use a prefix range query.
     const term = searchTerm.trim().toLowerCase();
     if (term.length < 2) return [];
 
-    // Query the public profiles sub-collection, ordered by lowercased display name.
-    // Profiles must be mirrored to /publicProfiles/{uid} on save for cross-user lookup.
-    const pubRef = collection(this.firestore, 'publicProfiles');
-    const snap = await getDocs(
-      query(
-        pubRef,
-        where('displayNameLower', '>=', term),
-        where('displayNameLower', '<=', term + '\uf8ff'),
-        orderBy('displayNameLower'),
-      )
-    );
+    const matchedByUid = new Map<string, UserProfile>();
 
-    return snap.docs.map((d) => this.normalizeProfile(d.id, d.data()));
+    try {
+      const pubRef = collection(this.firestore, 'publicProfiles');
+      const prefixMatches = await getDocs(
+        query(
+          pubRef,
+          where('displayNameLower', '>=', term),
+          where('displayNameLower', '<=', term + '\uf8ff'),
+          orderBy('displayNameLower'),
+        )
+      );
+
+      for (const profileDoc of prefixMatches.docs) {
+        const normalized = this.normalizeProfile(profileDoc.id, profileDoc.data());
+        matchedByUid.set(normalized.uid, normalized);
+      }
+    } catch {
+      // Fall through to scan-based search for environments without required indexes.
+    }
+
+    const hydrateFromScanDoc = (uid: string, data: Record<string, unknown>): void => {
+      const candidateLower =
+        typeof data['displayNameLower'] === 'string'
+          ? data['displayNameLower']
+          : (typeof data['displayName'] === 'string' ? data['displayName'].toLowerCase() : '');
+      if (!candidateLower.startsWith(term)) {
+        return;
+      }
+
+      matchedByUid.set(uid, this.normalizeProfile(uid, data));
+    };
+
+    if (matchedByUid.size === 0) {
+      const publicProfiles = await getDocs(collection(this.firestore, 'publicProfiles'));
+      for (const profileDoc of publicProfiles.docs) {
+        hydrateFromScanDoc(profileDoc.id, profileDoc.data());
+      }
+    }
+
+    if (matchedByUid.size === 0) {
+      const privateProfiles = await getDocs(collectionGroup(this.firestore, 'profile'));
+      for (const profileDoc of privateProfiles.docs) {
+        const uid = profileDoc.ref.parent.parent?.id;
+        if (!uid) {
+          continue;
+        }
+        hydrateFromScanDoc(uid, profileDoc.data());
+      }
+    }
+
+    return Array.from(matchedByUid.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }
+
+  async findProfileByEmail(email: string): Promise<UserProfile | null> {
+    const safeEmail = this.normalizeEmail(email);
+    if (!safeEmail) {
+      return null;
+    }
+
+    const publicProfiles = await getDocs(
+      query(collection(this.firestore, 'publicProfiles'), where('emailLower', '==', safeEmail.toLowerCase()))
+    );
+    if (!publicProfiles.empty) {
+      const first = publicProfiles.docs[0];
+      return this.normalizeProfile(first.id, first.data());
+    }
+
+    const privateProfiles = await getDocs(collectionGroup(this.firestore, 'profile'));
+    for (const profileDoc of privateProfiles.docs) {
+      const data = profileDoc.data();
+      const candidateEmail = typeof data['email'] === 'string' ? data['email'].trim().toLowerCase() : '';
+      if (!candidateEmail || candidateEmail !== safeEmail.toLowerCase()) {
+        continue;
+      }
+
+      const uid = profileDoc.ref.parent.parent?.id;
+      if (!uid) {
+        continue;
+      }
+
+      return this.normalizeProfile(uid, data);
+    }
+
+    return null;
   }
 
   /** Save profile and mirror to publicProfiles/{uid} for cross-user search */
-  async savePublicProfile(uid: string, displayName: string): Promise<UserProfile> {
+  async savePublicProfile(uid: string, displayName: string, email?: string): Promise<UserProfile> {
     const safeUid = this.assertUid(uid);
     const safeName = displayName.trim();
     if (!safeName) throw new Error('Display name is required.');
@@ -93,17 +184,24 @@ export class SocialStorageService {
 
     const profile: Omit<UserProfile, 'uid'> = {
       displayName: safeName,
+      email: this.normalizeEmail(email),
       avatarInitials: this.initials(safeName),
       createdAt,
       updatedAt: now,
     };
 
-    await setDoc(privateRef, profile);
+    await setDoc(privateRef, {
+      ...profile,
+      displayNameLower: safeName.toLowerCase(),
+      emailLower: profile.email ? profile.email.toLowerCase() : '',
+    });
 
     const publicRef = doc(this.firestore, `publicProfiles/${safeUid}`);
     await setDoc(publicRef, {
       displayName: safeName,
       displayNameLower: safeName.toLowerCase(),
+      email: profile.email ?? '',
+      emailLower: profile.email ? profile.email.toLowerCase() : '',
       avatarInitials: this.initials(safeName),
       updatedAt: now,
     });
@@ -113,7 +211,7 @@ export class SocialStorageService {
 
   // ─── Friend Requests ────────────────────────────────────────────────────────
 
-  async sendFriendRequest(fromUid: string, fromDisplayName: string, toUid: string): Promise<FriendRequest> {
+  async sendFriendRequest(fromUid: string, fromDisplayName: string, toUid: string, fromEmail?: string): Promise<FriendRequest> {
     if (fromUid === toUid) throw new Error('Cannot send a friend request to yourself.');
 
     const reqId = `${fromUid}_${toUid}`;
@@ -135,13 +233,31 @@ export class SocialStorageService {
     const request: Omit<FriendRequest, 'id'> = {
       fromUid,
       fromDisplayName,
+      fromEmail: this.normalizeEmail(fromEmail),
       toUid,
       status: 'pending',
       createdAt: now,
       updatedAt: now,
     };
 
-    await setDoc(reqRef, request);
+    const notificationRef = doc(this.firestore, `users/${toUid}/notifications/friend-request__${reqId}`);
+    const notification = {
+      type: 'friend-request' as const,
+      toUid,
+      fromUid,
+      fromDisplayName,
+      fromEmail: this.normalizeEmail(fromEmail),
+      requestId: reqId,
+      message: `${fromDisplayName} sent you a friend request.`,
+      isRead: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const batch = writeBatch(this.firestore);
+    batch.set(reqRef, request);
+    batch.set(notificationRef, notification);
+    await batch.commit();
     return { id: reqId, ...request };
   }
 
@@ -150,25 +266,32 @@ export class SocialStorageService {
     await updateDoc(reqRef, { status, updatedAt: new Date().toISOString() });
   }
 
+  async removeFriend(requestId: string): Promise<void> {
+    const reqRef = doc(this.firestore, `friendRequests/${requestId}`);
+    await updateDoc(reqRef, { status: 'declined', updatedAt: new Date().toISOString() });
+  }
+
   async getIncomingRequests(uid: string): Promise<FriendRequest[]> {
     const safeUid = this.assertUid(uid);
     const snap = await getDocs(
-      query(collection(this.firestore, 'friendRequests'), where('toUid', '==', safeUid), where('status', '==', 'pending'))
+      query(collection(this.firestore, 'friendRequests'), where('toUid', '==', safeUid))
     );
-    return snap.docs.map((d) => this.normalizeFriendRequest({ id: d.id, ...d.data() }));
+    return snap.docs
+      .map((d) => this.normalizeFriendRequest({ id: d.id, ...d.data() }))
+      .filter((request) => request.status === 'pending');
   }
 
   async getAcceptedFriends(uid: string): Promise<FriendRequest[]> {
     const safeUid = this.assertUid(uid);
     const [sent, received] = await Promise.all([
-      getDocs(query(collection(this.firestore, 'friendRequests'), where('fromUid', '==', safeUid), where('status', '==', 'accepted'))),
-      getDocs(query(collection(this.firestore, 'friendRequests'), where('toUid', '==', safeUid), where('status', '==', 'accepted'))),
+      getDocs(query(collection(this.firestore, 'friendRequests'), where('fromUid', '==', safeUid))),
+      getDocs(query(collection(this.firestore, 'friendRequests'), where('toUid', '==', safeUid))),
     ]);
 
     const all = [
       ...sent.docs.map((d) => this.normalizeFriendRequest({ id: d.id, ...d.data() })),
       ...received.docs.map((d) => this.normalizeFriendRequest({ id: d.id, ...d.data() })),
-    ];
+    ].filter((request) => request.status === 'accepted');
 
     // Dedupe (shouldn't happen but guard anyway)
     const seen = new Set<string>();
@@ -177,6 +300,43 @@ export class SocialStorageService {
       seen.add(r.id);
       return true;
     });
+  }
+
+  async getUnreadFriendNotifications(uid: string): Promise<FriendNotification[]> {
+    const safeUid = this.assertUid(uid);
+    const notificationsRef = collection(this.firestore, `users/${safeUid}/notifications`);
+    const snapshot = await getDocs(notificationsRef);
+
+    return snapshot.docs
+      .map((docSnapshot) => this.normalizeFriendNotification(docSnapshot.id, docSnapshot.data()))
+      .filter((notification) => notification.type === 'friend-request' && !notification.isRead)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async markFriendNotificationRead(uid: string, notificationId: string): Promise<void> {
+    const safeUid = this.assertUid(uid);
+    const notificationRef = doc(this.firestore, `users/${safeUid}/notifications/${notificationId}`);
+    await updateDoc(notificationRef, { isRead: true, updatedAt: new Date().toISOString() });
+  }
+
+  async markFriendNotificationsForRequestRead(uid: string, requestId: string): Promise<void> {
+    const safeUid = this.assertUid(uid);
+    const notificationsRef = collection(this.firestore, `users/${safeUid}/notifications`);
+    const snapshot = await getDocs(notificationsRef);
+    const matches = snapshot.docs.filter((docSnapshot) => {
+      const data = docSnapshot.data();
+      return data['type'] === 'friend-request' && data['requestId'] === requestId && data['isRead'] !== true;
+    });
+
+    if (matches.length === 0) {
+      return;
+    }
+
+    const batch = writeBatch(this.firestore);
+    for (const match of matches) {
+      batch.update(match.ref, { isRead: true, updatedAt: new Date().toISOString() });
+    }
+    await batch.commit();
   }
 
   friendUidFrom(request: FriendRequest, myUid: string): string {
@@ -217,7 +377,6 @@ export class SocialStorageService {
           query(
             collection(this.firestore, 'sharedWorkouts'),
             where('ownerUid', 'in', chunk),
-            orderBy('sharedAt', 'desc'),
           )
         )
       )
@@ -236,9 +395,11 @@ export class SocialStorageService {
   async getMySharedWorkouts(uid: string): Promise<SharedWorkout[]> {
     const safeUid = this.assertUid(uid);
     const snap = await getDocs(
-      query(collection(this.firestore, 'sharedWorkouts'), where('ownerUid', '==', safeUid), orderBy('sharedAt', 'desc'))
+      query(collection(this.firestore, 'sharedWorkouts'), where('ownerUid', '==', safeUid))
     );
-    return snap.docs.map((d) => this.normalizeSharedWorkout({ id: d.id, ...d.data() }));
+    return snap.docs
+      .map((d) => this.normalizeSharedWorkout({ id: d.id, ...d.data() }))
+      .sort((a, b) => b.sharedAt.localeCompare(a.sharedAt));
   }
 
   // ─── Reactions ──────────────────────────────────────────────────────────────
@@ -308,9 +469,11 @@ export class SocialStorageService {
 
   private normalizeProfile(uid: string, data: Record<string, unknown>): UserProfile {
     const displayName = typeof data['displayName'] === 'string' ? data['displayName'] : 'Unknown';
+    const email = typeof data['email'] === 'string' ? data['email'].trim() : '';
     return {
       uid,
       displayName,
+      email,
       avatarInitials: typeof data['avatarInitials'] === 'string' ? data['avatarInitials'] : this.initials(displayName),
       createdAt: typeof data['createdAt'] === 'string' ? data['createdAt'] : new Date().toISOString(),
       updatedAt: typeof data['updatedAt'] === 'string' ? data['updatedAt'] : new Date().toISOString(),
@@ -326,10 +489,27 @@ export class SocialStorageService {
       id: String(d['id'] ?? ''),
       fromUid: String(d['fromUid'] ?? ''),
       fromDisplayName: String(d['fromDisplayName'] ?? ''),
+      fromEmail: typeof d['fromEmail'] === 'string' ? d['fromEmail'] : '',
       toUid: String(d['toUid'] ?? ''),
       status,
       createdAt: String(d['createdAt'] ?? new Date().toISOString()),
       updatedAt: String(d['updatedAt'] ?? new Date().toISOString()),
+    };
+  }
+
+  private normalizeFriendNotification(id: string, data: Record<string, unknown>): FriendNotification {
+    return {
+      id,
+      type: 'friend-request',
+      toUid: String(data['toUid'] ?? ''),
+      fromUid: String(data['fromUid'] ?? ''),
+      fromDisplayName: String(data['fromDisplayName'] ?? ''),
+      fromEmail: typeof data['fromEmail'] === 'string' ? data['fromEmail'] : '',
+      requestId: String(data['requestId'] ?? ''),
+      message: String(data['message'] ?? 'You have a friend request.'),
+      isRead: data['isRead'] === true,
+      createdAt: String(data['createdAt'] ?? new Date().toISOString()),
+      updatedAt: String(data['updatedAt'] ?? new Date().toISOString()),
     };
   }
 
@@ -379,5 +559,12 @@ export class SocialStorageService {
     const s = uid.trim();
     if (!s) throw new Error('You must be signed in.');
     return s;
+  }
+
+  private normalizeEmail(email: string | undefined): string {
+    if (!email) {
+      return '';
+    }
+    return email.trim().toLowerCase();
   }
 }

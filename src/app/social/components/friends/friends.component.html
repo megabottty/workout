@@ -5,6 +5,32 @@
     <p class="error-msg">{{ errorMessage() }}</p>
   }
 
+  @if (unreadNotifications().length > 0) {
+    <div class="card notifications-card">
+      <h3>New Notifications <span class="badge">{{ unreadNotifications().length }}</span></h3>
+      <ul class="notification-list">
+        @for (notification of unreadNotifications(); track notification.id) {
+          <li class="notification-item">
+            <div class="notification-content">
+              <p>{{ notification.message }}</p>
+              @if (notification.fromEmail) {
+                <p class="notification-subtle">{{ notification.fromEmail }}</p>
+              }
+            </div>
+            <button
+              class="btn-secondary"
+              type="button"
+              (click)="markNotificationRead(notification.id)"
+              [disabled]="isProcessing(notification.id)"
+            >
+              {{ isProcessing(notification.id) ? 'Saving…' : 'Mark read' }}
+            </button>
+          </li>
+        }
+      </ul>
+    </div>
+  }
+
   <!-- Incoming friend requests -->
   @if (incomingRequests().length > 0) {
     <div class="card incoming-requests">
@@ -31,11 +57,11 @@
   <!-- Find friends -->
   <div class="card search-card">
     <h3>Find Friends</h3>
-    <p class="hint">Search by display name (min 2 characters). Friends must have set up a profile to appear.</p>
+    <p class="hint">Search by display name or Gmail address. Friends must have set up a profile to appear.</p>
     <div class="search-row">
       <input
         type="text"
-        placeholder="Search by name…"
+        placeholder="Name or email (e.g. friend@gmail.com)…"
         [ngModel]="searchQuery()"
         (ngModelChange)="searchQuery.set($event)"
         (keyup.enter)="search()"
@@ -50,10 +76,17 @@
         @for (profile of searchResults(); track profile.uid) {
           <li class="result-item">
             <span class="avatar-sm">{{ profile.avatarInitials }}</span>
-            <span class="result-name">{{ profile.displayName }}</span>
+            <span class="result-name">
+              {{ profile.displayName }}
+              @if (profile.email) {
+                <small class="result-subtle">{{ profile.email }}</small>
+              }
+            </span>
             <span class="result-action">
               @if (isAlreadyFriend(profile.uid)) {
                 <span class="chip-friend">Already friends 🤝</span>
+              } @else if (hasIncomingPending(profile.uid)) {
+                <span class="chip-pending">They already requested you — accept above 👆</span>
               } @else if (isPending(profile.uid)) {
                 <span class="chip-pending">Request sent ⏳</span>
               } @else {
@@ -78,7 +111,10 @@
         @for (req of friends(); track req.id) {
           <li class="friend-item">
             <span class="avatar-sm">{{ friendDisplayName(req).slice(0, 2).toUpperCase() }}</span>
-            <span>{{ friendDisplayName(req) }}</span>
+            <span class="friend-name">{{ friendDisplayName(req) }}</span>
+            <button class="btn-remove" type="button" (click)="removeFriend(req)" [disabled]="isProcessing(req.id)">
+              {{ isProcessing(req.id) ? 'Removing…' : 'Remove' }}
+            </button>
           </li>
         }
       </ul>

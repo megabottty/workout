@@ -6,6 +6,7 @@
   border-radius: 1rem;
   padding: 1.25rem;
   box-shadow: 0 6px 24px rgba(16, 24, 40, 0.06);
+  min-width: 0;
 }
 
 .subtitle {
@@ -16,6 +17,7 @@
 form {
   display: grid;
   gap: 1.25rem;
+  min-width: 0;
 }
 
 label {
@@ -203,6 +205,7 @@ button {
   padding: 0.45rem 0.8rem;
   font: inherit;
   cursor: pointer;
+  min-height: 2.5rem;
 }
 
 .actions button[type="submit"] {
@@ -321,6 +324,10 @@ button {
     padding: 0.9rem;
   }
 
+  .subtitle {
+    line-height: 1.35;
+  }
+
   input,
   select,
   textarea,
@@ -362,6 +369,10 @@ button {
   .modal-actions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .history-scope-toggle {
+    align-items: flex-start;
   }
 
   .share-panel,

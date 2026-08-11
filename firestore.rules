@@ -46,16 +46,58 @@ service cloud.firestore {
                     && request.resource.data.keys().hasOnly([
                       'fromUid',
                       'fromDisplayName',
+                      'fromEmail',
                       'toUid',
                       'status',
                       'createdAt',
                       'updatedAt',
                     ]);
-      // Update (accept / decline): must be recipient, may only change status
+      // Update:
+      // 1) Recipient can accept/decline pending requests.
+      // 2) Either participant can unfriend by changing accepted -> declined.
       allow update: if request.auth != null
-                    && resource.data.toUid == request.auth.uid
                     && request.resource.data.diff(resource.data).changedKeys().hasOnly(['status', 'updatedAt'])
-                    && request.resource.data.status in ['accepted', 'declined'];
+                    && (
+                      (
+                        resource.data.toUid == request.auth.uid
+                        && resource.data.status == 'pending'
+                        && request.resource.data.status in ['accepted', 'declined']
+                      )
+                      ||
+                      (
+                        (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid)
+                        && resource.data.status == 'accepted'
+                        && request.resource.data.status == 'declined'
+                      )
+                    );
+    }
+
+    // ── User notifications ───────────────────────────────────────────────────
+    match /users/{userId}/notifications/{notificationId} {
+      allow get, list: if request.auth != null && request.auth.uid == userId;
+
+      // Friend request notifications are written by the sender to the recipient inbox.
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.fromUid
+                    && request.resource.data.toUid == userId
+                    && request.resource.data.type == 'friend-request'
+                    && request.resource.data.keys().hasOnly([
+                      'type',
+                      'toUid',
+                      'fromUid',
+                      'fromDisplayName',
+                      'fromEmail',
+                      'requestId',
+                      'message',
+                      'isRead',
+                      'createdAt',
+                      'updatedAt',
+                    ]);
+
+      // Recipient can mark notifications as read.
+      allow update: if request.auth != null
+                    && request.auth.uid == userId
+                    && request.resource.data.diff(resource.data).changedKeys().hasOnly(['isRead', 'updatedAt']);
     }
 
     // ── Shared workouts ──────────────────────────────────────────────────────

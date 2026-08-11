@@ -20,3 +20,10 @@ body {
     #f8fafc;
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+input,
+select,
+textarea,
+button {
+  max-width: 100%;
+}

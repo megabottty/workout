@@ -374,7 +374,10 @@ export class WorkoutLogComponent {
 
   async shareWorkout(): Promise<void> {
     const session = this.lastSavedSession();
-    if (!session) return;
+    if (!session) {
+      this.errorMessage.set('Save this workout first, or open an existing saved workout before sharing.');
+      return;
+    }
 
     const user = this.authService.user();
     if (!user) return;
@@ -764,6 +767,7 @@ export class WorkoutLogComponent {
 
     if (!existing) {
       this.isEditingExisting.set(false);
+      this.lastSavedSession.set(null);
       this.workoutNotes.set('');
       this.blocks = this.prefillBlocksFromProgramTemplate(day);
       this.copiedFromDate.set('');
@@ -772,6 +776,7 @@ export class WorkoutLogComponent {
     }
 
     this.isEditingExisting.set(true);
+    this.lastSavedSession.set(existing);
     this.workoutNotes.set(existing.notes);
     this.blocks = existing.blocks.map((block) => ({
       id: block.id,
