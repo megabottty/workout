@@ -193,8 +193,11 @@
   <p class="save-message" *ngIf="saveMessage()">{{ saveMessage() }}</p>
 
   <!-- Share to friends feed -->
-  <div class="share-panel" *ngIf="isEditingExisting()">
+  <div class="share-panel">
     <h3>Share this workout 💪</h3>
+    <p class="share-hint" *ngIf="!lastSavedSession()">
+      Save this workout first, then tap share.
+    </p>
     <textarea
       name="shareCaption"
       [ngModel]="shareCaption()"
@@ -202,7 +205,7 @@
       rows="2"
       placeholder="Add a caption (optional)… e.g. 'New PR on deadlifts! 🔥'"
     ></textarea>
-    <button type="button" class="btn-share" (click)="shareWorkout()" [disabled]="isSharing()">
+    <button type="button" class="btn-share" (click)="shareWorkout()" [disabled]="isSharing() || !lastSavedSession()">
       {{ isSharing() ? 'Sharing…' : '📤 Share to Friends Feed' }}
     </button>
     <p class="share-message" *ngIf="shareMessage()">{{ shareMessage() }}</p>

@@ -213,6 +213,24 @@
 }
 
 .error-msg { color: #c0392b; font-size: 0.875rem; margin-bottom: 0.75rem; }
+.success-msg { color: #166534; font-size: 0.875rem; margin-bottom: 0.75rem; }
+
+.btn-import {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: #ecfeff;
+  color: #155e75;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  min-height: 2.5rem;
+  cursor: pointer;
+  margin-bottom: 0.75rem;
+
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+  &:hover:not(:disabled) { background: #cffafe; border-color: #7dd3fc; }
+}
 
 @media (max-width: 640px) {
   .feed-page {

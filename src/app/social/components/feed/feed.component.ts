@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 
 import { AuthService } from '../../../auth/services/auth.service';
 import { SocialStorageService } from '../../services/social-storage.service';
+import { WorkoutStorageService } from '../../../workouts/services/workout-storage.service';
 import {
   FriendRequest,
   SharedWorkout,
@@ -25,9 +26,11 @@ export class FeedComponent implements OnInit {
   readonly feed = signal<SharedWorkout[]>([]);
   readonly isLoading = signal(true);
   readonly errorMessage = signal('');
+  readonly successMessage = signal('');
   readonly commentInputs = signal<Record<string, string>>({});
   readonly expandedComments = signal<Set<string>>(new Set());
   readonly expandedWorkouts = signal<Set<string>>(new Set());
+  readonly importingWorkoutIds = signal<Set<string>>(new Set());
   readonly myProfile = signal<UserProfile | null>(null);
   readonly friends = signal<FriendRequest[]>([]);
 
@@ -36,6 +39,7 @@ export class FeedComponent implements OnInit {
   constructor(
     private readonly authService: AuthService,
     private readonly socialStorage: SocialStorageService,
+    private readonly workoutStorage: WorkoutStorageService,
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -93,6 +97,65 @@ export class FeedComponent implements OnInit {
     }
   }
 
+  async importWorkoutToMyLog(workout: SharedWorkout): Promise<void> {
+    const user = this.authService.user();
+    if (!user) {
+      return;
+    }
+
+    const importDate = new Date().toISOString().slice(0, 10);
+    this.importingWorkoutIds.update((ids) => new Set([...ids, workout.id]));
+    this.errorMessage.set('');
+    this.successMessage.set('');
+
+    try {
+      const existing = await this.workoutStorage.getSessionByDateAndDay(
+        user.uid,
+        importDate,
+        workout.session.trainingDay,
+        workout.session.programBlockId
+      );
+      if (existing) {
+        throw new Error(
+          `You already have a ${this.trainingDayLabel(workout.session.trainingDay)} workout for today in this Program Block. ` +
+          'Choose another date in Log before copying this workout.'
+        );
+      }
+
+      await this.workoutStorage.saveSession(user.uid, {
+        date: importDate,
+        trainingDay: workout.session.trainingDay,
+        programBlockId: workout.session.programBlockId,
+        programBlockName: workout.session.programBlockName,
+        notes: workout.session.notes,
+        blocks: workout.session.blocks.map((block) => ({
+          name: block.name,
+          movements: block.movements.map((movement) => ({
+            movementName: movement.movementName,
+            setEntries: movement.setEntries.map((setEntry) => ({
+              setNumber: setEntry.setNumber,
+              reps: setEntry.reps,
+              load: setEntry.load,
+            })),
+            notes: movement.notes,
+          })),
+        })),
+      });
+
+      this.successMessage.set(
+        `Copied ${workout.ownerDisplayName}'s workout to your log for today. Open Log to adjust and save updates.`
+      );
+    } catch (err) {
+      this.errorMessage.set(err instanceof Error ? err.message : 'Could not copy workout to your log.');
+    } finally {
+      this.importingWorkoutIds.update((ids) => {
+        const next = new Set(ids);
+        next.delete(workout.id);
+        return next;
+      });
+    }
+  }
+
   setCommentInput(workoutId: string, value: string): void {
     this.commentInputs.update((m) => ({ ...m, [workoutId]: value }));
   }
@@ -119,6 +182,10 @@ export class FeedComponent implements OnInit {
 
   isWorkoutExpanded(workoutId: string): boolean {
     return this.expandedWorkouts().has(workoutId);
+  }
+
+  isImporting(workoutId: string): boolean {
+    return this.importingWorkoutIds().has(workoutId);
   }
 
   reactionCount(workout: SharedWorkout, emoji: WorkoutReactionEmoji): number {

@@ -4,6 +4,9 @@
   @if (errorMessage()) {
     <p class="error-msg">{{ errorMessage() }}</p>
   }
+  @if (successMessage()) {
+    <p class="success-msg">{{ successMessage() }}</p>
+  }
 
   @if (!myProfile()) {
     <div class="setup-nudge card">
@@ -84,6 +87,10 @@
               </button>
             }
           </div>
+
+          <button type="button" class="btn-import" (click)="importWorkoutToMyLog(workout)" [disabled]="isImporting(workout.id)">
+            {{ isImporting(workout.id) ? 'Copying…' : 'Copy to My Workout Log' }}
+          </button>
 
           <!-- Comments toggle -->
           <div class="comments-section">
