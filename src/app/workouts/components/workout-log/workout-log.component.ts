@@ -60,6 +60,11 @@ type MovementHistoryEntry = {
   notes: string;
 };
 
+type ShareRecipientOption = {
+  uid: string;
+  displayName: string;
+};
+
 @Component({
   selector: 'app-workout-log',
   standalone: true,
@@ -89,6 +94,8 @@ export class WorkoutLogComponent {
   readonly isSharing = signal(false);
   readonly shareMessage = signal('');
   readonly lastSavedSession = signal<WorkoutSession | null>(null);
+  readonly shareRecipients = signal<ShareRecipientOption[]>([]);
+  readonly selectedShareRecipientUids = signal<Set<string>>(new Set());
 
   readonly isProgramBlockModalOpen = signal(false);
   readonly isCreatingProgramBlock = signal(false);
@@ -249,8 +256,15 @@ export class WorkoutLogComponent {
     label: TRAINING_DAY_LABELS[value],
   }));
   readonly trainingDayLabels = TRAINING_DAY_LABELS;
+  readonly selectedShareRecipientLabels = computed(() => {
+    const selected = this.selectedShareRecipientUids();
+    return this.shareRecipients()
+      .filter((recipient) => selected.has(recipient.uid))
+      .map((recipient) => recipient.displayName);
+  });
 
   private loadToken = 0;
+  private loadedShareRecipientsForUid = '';
 
   constructor(
     private readonly workoutStorage: WorkoutStorageService,
@@ -392,14 +406,45 @@ export class WorkoutLogComponent {
         this.errorMessage.set('Please set up your profile before sharing. Go to Profile in the nav.');
         return;
       }
-      await this.socialStorage.shareWorkout(user.uid, profile.displayName, session, this.shareCaption());
-      this.shareMessage.set('Shared to your friends feed! 🎉');
+      const availableRecipientUids = new Set(this.shareRecipients().map((recipient) => recipient.uid));
+      const recipients = Array.from(this.selectedShareRecipientUids()).filter((uid) => availableRecipientUids.has(uid));
+      if (recipients.length === 0) {
+        this.errorMessage.set('Choose at least one friend to share with.');
+        return;
+      }
+
+      await this.socialStorage.shareWorkout(user.uid, profile.displayName, session, this.shareCaption(), recipients);
+      this.shareMessage.set(`Shared with ${recipients.length} friend${recipients.length === 1 ? '' : 's'} 🎉`);
       this.shareCaption.set('');
     } catch (err) {
       this.errorMessage.set(err instanceof Error ? err.message : 'Could not share workout.');
     } finally {
       this.isSharing.set(false);
     }
+  }
+
+  toggleShareRecipient(uid: string): void {
+    this.selectedShareRecipientUids.update((existing) => {
+      const next = new Set(existing);
+      if (next.has(uid)) {
+        next.delete(uid);
+      } else {
+        next.add(uid);
+      }
+      return next;
+    });
+  }
+
+  isShareRecipientSelected(uid: string): boolean {
+    return this.selectedShareRecipientUids().has(uid);
+  }
+
+  selectAllShareRecipients(): void {
+    this.selectedShareRecipientUids.set(new Set(this.shareRecipients().map((recipient) => recipient.uid)));
+  }
+
+  clearShareRecipients(): void {
+    this.selectedShareRecipientUids.set(new Set());
   }
 
   movementNames(block: { movements: Array<{ movementName: string }> }): string {
@@ -639,6 +684,7 @@ export class WorkoutLogComponent {
 
       this.allSessions.set(sessions);
       this.programBlockDefinitions.set(definitions);
+      await this.ensureShareRecipientsLoaded(userId);
       this.ensureSelectedProgramBlock(sessions, definitions, date, day);
       this.loadSelectionFromCache(date, day);
     } finally {
@@ -660,6 +706,9 @@ export class WorkoutLogComponent {
     this.copyWeekMessage.set('');
     this.allSessions.set([]);
     this.programBlockDefinitions.set([]);
+    this.shareRecipients.set([]);
+    this.selectedShareRecipientUids.set(new Set());
+    this.loadedShareRecipientsForUid = '';
     this.isProgramBlockModalOpen.set(false);
     this.isLoading.set(false);
   }
@@ -818,5 +867,36 @@ export class WorkoutLogComponent {
     const diffMs = target.getTime() - start.getTime();
     const diffDays = Math.floor(diffMs / 86_400_000);
     return Math.max(1, Math.floor(diffDays / 7) + 1);
+  }
+
+  private async ensureShareRecipientsLoaded(userId: string): Promise<void> {
+    if (this.loadedShareRecipientsForUid === userId) {
+      return;
+    }
+
+    const accepted = await this.socialStorage.getAcceptedFriends(userId);
+    const recipientUids = Array.from(
+      new Set(accepted.map((request) => this.socialStorage.friendUidFrom(request, userId)))
+    );
+
+    const recipients: ShareRecipientOption[] = [];
+    for (const uid of recipientUids) {
+      const profile = await this.socialStorage.getProfile(uid);
+      recipients.push({
+        uid,
+        displayName: profile?.displayName?.trim() || uid,
+      });
+    }
+
+    recipients.sort((a, b) => a.displayName.localeCompare(b.displayName));
+    this.shareRecipients.set(recipients);
+
+    const stillValidSelected = new Set(
+      Array.from(this.selectedShareRecipientUids()).filter((uid) => recipients.some((recipient) => recipient.uid === uid))
+    );
+    this.selectedShareRecipientUids.set(
+      stillValidSelected.size > 0 ? stillValidSelected : new Set(recipients.map((recipient) => recipient.uid))
+    );
+    this.loadedShareRecipientsForUid = userId;
   }
 }

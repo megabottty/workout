@@ -109,6 +109,7 @@ export interface SharedWorkout {
   id: string;
   ownerUid: string;
   ownerDisplayName: string;
+  recipientUids: string[];
   session: WorkoutSession;
   caption: string;
   /** Map of emoji → array of UIDs that reacted with that emoji */

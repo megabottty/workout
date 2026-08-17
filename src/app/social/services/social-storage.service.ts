@@ -345,14 +345,24 @@ export class SocialStorageService {
 
   // ─── Shared Workouts ────────────────────────────────────────────────────────
 
-  async shareWorkout(ownerUid: string, ownerDisplayName: string, session: WorkoutSession, caption: string): Promise<SharedWorkout> {
+  async shareWorkout(
+    ownerUid: string,
+    ownerDisplayName: string,
+    session: WorkoutSession,
+    caption: string,
+    recipientUids: string[],
+  ): Promise<SharedWorkout> {
     const safeUid = this.assertUid(ownerUid);
+    const uniqueRecipientUids = Array.from(
+      new Set(recipientUids.map((uid) => uid.trim()).filter((uid) => uid.length > 0 && uid !== safeUid))
+    );
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
 
     const shared: Omit<SharedWorkout, 'id'> = {
       ownerUid: safeUid,
       ownerDisplayName,
+      recipientUids: uniqueRecipientUids,
       session,
       caption: caption.trim(),
       reactions: { '💪': [], '🔥': [], '👏': [], '🏆': [], '😤': [] },
@@ -366,8 +376,9 @@ export class SocialStorageService {
     return { id, ...shared };
   }
 
-  async getFeedForFriends(friendUids: string[]): Promise<SharedWorkout[]> {
+  async getFeedForFriends(friendUids: string[], viewerUid: string): Promise<SharedWorkout[]> {
     if (friendUids.length === 0) return [];
+    const safeViewerUid = this.assertUid(viewerUid);
 
     // Firestore 'in' query limited to 30 items; chunk if needed
     const chunks = this.chunk(friendUids, 30);
@@ -389,7 +400,10 @@ export class SocialStorageService {
       }
     }
 
-    return results.sort((a, b) => b.sharedAt.localeCompare(a.sharedAt)).slice(0, 50);
+    return results
+      .filter((workout) => workout.recipientUids.length === 0 || workout.recipientUids.includes(safeViewerUid))
+      .sort((a, b) => b.sharedAt.localeCompare(a.sharedAt))
+      .slice(0, 50);
   }
 
   async getMySharedWorkouts(uid: string): Promise<SharedWorkout[]> {
@@ -522,11 +536,15 @@ export class SocialStorageService {
     ) as Record<WorkoutReactionEmoji, WorkoutReaction[]>;
 
     const rawComments = Array.isArray(d['comments']) ? d['comments'] as WorkoutComment[] : [];
+    const recipientUids = Array.isArray(d['recipientUids'])
+      ? d['recipientUids'].filter((uid): uid is string => typeof uid === 'string' && uid.trim().length > 0)
+      : [];
 
     return {
       id: String(d['id'] ?? ''),
       ownerUid: String(d['ownerUid'] ?? ''),
       ownerDisplayName: String(d['ownerDisplayName'] ?? ''),
+      recipientUids,
       session: d['session'] as WorkoutSession,
       caption: typeof d['caption'] === 'string' ? d['caption'] : '',
       reactions,

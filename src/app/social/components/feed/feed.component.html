@@ -19,7 +19,11 @@
   } @else if (feed().length === 0) {
     <div class="empty-state card">
       <p>🏋️ No workouts in your feed yet.</p>
-      <p>Add some <a routerLink="/friends">friends</a> and ask them to share their workouts!</p>
+      @if (friends().length === 0) {
+        <p>Add some <a routerLink="/friends">friends</a> and ask them to share their workouts!</p>
+      } @else {
+        <p>You have friends connected. Save and share a workout from <a routerLink="/workouts/log">Log</a>, then ask your friend to share back.</p>
+      }
     </div>
   } @else {
     <ul class="feed-list">
@@ -30,6 +34,9 @@
             <span class="avatar">{{ workout.ownerDisplayName.slice(0,2).toUpperCase() }}</span>
             <div class="card-meta">
               <strong>{{ workout.ownerDisplayName }}</strong>
+              @if (isMine(workout)) {
+                <span class="owner-chip">You shared this</span>
+              }
               <span class="meta-secondary">
                 {{ trainingDayLabel(workout.session.trainingDay) }} &middot;
                 {{ workout.session.programBlockName }} &middot;
@@ -88,9 +95,11 @@
             }
           </div>
 
-          <button type="button" class="btn-import" (click)="importWorkoutToMyLog(workout)" [disabled]="isImporting(workout.id)">
-            {{ isImporting(workout.id) ? 'Copying…' : 'Copy to My Workout Log' }}
-          </button>
+          @if (!isMine(workout)) {
+            <button type="button" class="btn-import" (click)="importWorkoutToMyLog(workout)" [disabled]="isImporting(workout.id)">
+              {{ isImporting(workout.id) ? 'Copying…' : 'Copy to My Workout Log' }}
+            </button>
+          }
 
           <!-- Comments toggle -->
           <div class="comments-section">

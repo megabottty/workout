@@ -56,8 +56,17 @@ export class FeedComponent implements OnInit {
       this.friends.set(friendships);
 
       const friendUids = friendships.map((f) => this.socialStorage.friendUidFrom(f, user.uid));
-      const feedItems = await this.socialStorage.getFeedForFriends(friendUids);
-      this.feed.set(feedItems);
+      const [friendFeedItems, mySharedItems] = await Promise.all([
+        this.socialStorage.getFeedForFriends(friendUids, user.uid),
+        this.socialStorage.getMySharedWorkouts(user.uid),
+      ]);
+
+      const byId = new Map<string, SharedWorkout>();
+      for (const item of [...friendFeedItems, ...mySharedItems]) {
+        byId.set(item.id, item);
+      }
+      const mergedFeed = Array.from(byId.values()).sort((a, b) => b.sharedAt.localeCompare(a.sharedAt));
+      this.feed.set(mergedFeed);
     } catch (err) {
       this.errorMessage.set('Could not load feed.');
     } finally {
@@ -186,6 +195,10 @@ export class FeedComponent implements OnInit {
 
   isImporting(workoutId: string): boolean {
     return this.importingWorkoutIds().has(workoutId);
+  }
+
+  isMine(workout: SharedWorkout): boolean {
+    return workout.ownerUid === this.myUid;
   }
 
   reactionCount(workout: SharedWorkout, emoji: WorkoutReactionEmoji): number {

@@ -198,6 +198,35 @@
     <p class="share-hint" *ngIf="!lastSavedSession()">
       Save this workout first, then tap share.
     </p>
+    @if (shareRecipients().length === 0) {
+      <p class="share-hint">
+        Add at least one accepted friend to enable sharing.
+      </p>
+    } @else {
+      <div class="share-recipient-actions">
+        <button type="button" (click)="selectAllShareRecipients()">Select all</button>
+        <button type="button" (click)="clearShareRecipients()">Clear</button>
+      </div>
+      <div class="share-recipient-list">
+        @for (recipient of shareRecipients(); track recipient.uid) {
+          <button
+            type="button"
+            class="share-recipient-chip"
+            [class.is-selected]="isShareRecipientSelected(recipient.uid)"
+            (click)="toggleShareRecipient(recipient.uid)"
+          >
+            {{ isShareRecipientSelected(recipient.uid) ? '✓ ' : '' }}{{ recipient.displayName }}
+          </button>
+        }
+      </div>
+      <p class="share-hint">
+        Selected: {{ selectedShareRecipientLabels().join(', ') || 'None' }}
+      </p>
+      <div class="share-preview">
+        <p class="share-preview-title">Recipient preview</p>
+        <p class="share-preview-text">They’ll see this workout in Feed, then can tap “Copy to My Workout Log” to save it to their own account.</p>
+      </div>
+    }
     <textarea
       name="shareCaption"
       [ngModel]="shareCaption()"
@@ -205,7 +234,12 @@
       rows="2"
       placeholder="Add a caption (optional)… e.g. 'New PR on deadlifts! 🔥'"
     ></textarea>
-    <button type="button" class="btn-share" (click)="shareWorkout()" [disabled]="isSharing() || !lastSavedSession()">
+    <button
+      type="button"
+      class="btn-share"
+      (click)="shareWorkout()"
+      [disabled]="isSharing() || !lastSavedSession() || shareRecipients().length === 0"
+    >
       {{ isSharing() ? 'Sharing…' : '📤 Share to Friends Feed' }}
     </button>
     <p class="share-message" *ngIf="shareMessage()">{{ shareMessage() }}</p>
