@@ -70,10 +70,7 @@ export class WorkoutHistoryComponent {
       const user = this.authService.user();
       if (!user) {
         this.weekGroups.set([]);
-        void this.router.navigate(['/login'], {
-          queryParams: { returnUrl: '/history' },
-          replaceUrl: true,
-        });
+        void this.router.navigate(['/login'], { replaceUrl: true });
         return;
       }
 

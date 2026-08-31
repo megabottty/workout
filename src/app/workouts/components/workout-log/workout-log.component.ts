@@ -279,10 +279,7 @@ export class WorkoutLogComponent {
 
       if (!user) {
         this.resetState();
-        void this.router.navigate(['/login'], {
-          queryParams: { returnUrl: '/workouts/log' },
-          replaceUrl: true,
-        });
+        void this.router.navigate(['/login'], { replaceUrl: true });
         return;
       }
 
