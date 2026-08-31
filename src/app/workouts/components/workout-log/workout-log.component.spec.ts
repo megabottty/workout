@@ -160,11 +160,42 @@ describe('WorkoutLogComponent', () => {
       notes: '',
     };
 
-    component.onSetLoadChange(movement, 1, 185);
+    movement.setEntries[0].load = 185;
+    component.onSetLoadBlur(movement, 1);
 
     expect(movement.setEntries).toEqual([
       { setNumber: 1, reps: null, load: 185 },
       { setNumber: 2, reps: null, load: 185 },
+    ]);
+  });
+
+  it('does not copy a partial value while typing; only copies once on blur', () => {
+    const movement: {
+      id: string;
+      movementName: string;
+      setEntries: Array<{ setNumber: number; reps: number | null; load: number | null }>;
+      notes: string;
+    } = {
+      id: 'move-1',
+      movementName: 'Back squat',
+      setEntries: [
+        { setNumber: 1, reps: null, load: null },
+        { setNumber: 2, reps: null, load: null },
+      ],
+      notes: '',
+    };
+
+    // Simulate keystrokes updating the model without triggering blur.
+    movement.setEntries[0].load = 1;
+    movement.setEntries[0].load = 15;
+    movement.setEntries[0].load = 150;
+    expect(movement.setEntries[1].load).toBeNull();
+
+    component.onSetLoadBlur(movement, 1);
+
+    expect(movement.setEntries).toEqual([
+      { setNumber: 1, reps: null, load: 150 },
+      { setNumber: 2, reps: null, load: 150 },
     ]);
   });
 
@@ -185,8 +216,10 @@ describe('WorkoutLogComponent', () => {
       notes: '',
     };
 
-    component.onSetLoadChange(movement, 1, 185);
-    component.onSetLoadChange(movement, 2, 195);
+    movement.setEntries[0].load = 185;
+    component.onSetLoadBlur(movement, 1);
+    movement.setEntries[1].load = 195;
+    component.onSetLoadBlur(movement, 2);
 
     expect(movement.setEntries).toEqual([
       { setNumber: 1, reps: null, load: 185 },

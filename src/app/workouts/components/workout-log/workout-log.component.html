@@ -123,7 +123,7 @@
                   step="0.5"
                   [name]="'load-' + movement.id + '-' + setEntry.setNumber"
                   [(ngModel)]="setEntry.load"
-                  (ngModelChange)="onSetLoadChange(movement, setEntry.setNumber, $event)"
+                  (blur)="onSetLoadBlur(movement, setEntry.setNumber)"
                 />
               </label>
               <button type="button" class="remove-set" (click)="removeSet(movement, setIndex)">

@@ -597,14 +597,13 @@ export class WorkoutLogComponent {
     }
   }
 
-  onSetLoadChange(movement: DraftMovement, setNumber: number, value: unknown): void {
-    const nextLoad = this.normalizeFormNumber(value);
+  onSetLoadBlur(movement: DraftMovement, setNumber: number): void {
     const activeSet = movement.setEntries.find((setEntry) => setEntry.setNumber === setNumber);
     if (!activeSet) {
       return;
     }
 
-    activeSet.load = nextLoad;
+    const nextLoad = activeSet.load;
     if (nextLoad === null) {
       return;
     }
@@ -748,23 +747,6 @@ export class WorkoutLogComponent {
     }
 
     return this.createDefaultSetEntries();
-  }
-
-  private normalizeFormNumber(value: unknown): number | null {
-    if (value === null || value === undefined || value === '') {
-      return null;
-    }
-
-    if (typeof value === 'number') {
-      return Number.isNaN(value) ? null : value;
-    }
-
-    if (typeof value === 'string') {
-      const parsed = Number(value);
-      return Number.isNaN(parsed) ? null : parsed;
-    }
-
-    return null;
   }
 
   private ensureSelectedProgramBlock(
