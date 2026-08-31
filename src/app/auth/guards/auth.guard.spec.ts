@@ -45,7 +45,7 @@ describe('authGuard', () => {
     expect(result).toBeTrue();
   });
 
-  it('redirects unauthenticated users to login with returnUrl', async () => {
+  it('redirects unauthenticated users to login', async () => {
     userSubject.next(null);
 
     const result = await TestBed.runInInjectionContext(() =>
@@ -53,7 +53,7 @@ describe('authGuard', () => {
     );
 
     expect(result instanceof UrlTree).toBeTrue();
-    expect(router.serializeUrl(result as UrlTree)).toBe('/login?returnUrl=%2Fhistory');
+    expect(router.serializeUrl(result as UrlTree)).toBe('/login');
   });
 });
 

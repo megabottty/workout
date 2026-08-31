@@ -7,8 +7,8 @@ import {
   signInWithPopup,
   signOut
 } from '@angular/fire/auth';
-import { Observable } from 'rxjs';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { Observable, shareReplay } from 'rxjs';
+import { toSignal } from '@angular/core/rxjs-interop';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -16,8 +16,14 @@ export class AuthService {
   readonly user$: Observable<User | null>;
 
   constructor(private readonly auth: Auth) {
-    this.user = toSignal(authState(this.auth), { initialValue: null });
-    this.user$ = toObservable(this.user);
+    // Derive user$ straight from Firebase so subscribers (route guards) always
+    // read the latest auth state synchronously. Bridging through a signal with
+    // toObservable defers emissions to the effect scheduler, which made guards
+    // observe a stale null right after sign-in.
+    this.user$ = authState(this.auth).pipe(
+      shareReplay({ bufferSize: 1, refCount: false })
+    );
+    this.user = toSignal(this.user$, { initialValue: null });
   }
 
   async signInWithGoogle(): Promise<void> {
