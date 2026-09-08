@@ -33,14 +33,14 @@
           <div class="card-header">
             <span class="avatar">{{ workout.ownerDisplayName.slice(0,2).toUpperCase() }}</span>
             <div class="card-meta">
-              <strong>{{ workout.ownerDisplayName }}</strong>
+              <strong class="card-owner-name">{{ workout.ownerDisplayName }}</strong>
               @if (isMine(workout)) {
                 <span class="owner-chip">You shared this</span>
               }
               <span class="meta-secondary">
-                {{ trainingDayLabel(workout.session.trainingDay) }} &middot;
-                {{ workout.session.programBlockName }} &middot;
-                {{ formatDate(workout.session.date) }}
+                <span>{{ trainingDayLabel(workout.session.trainingDay) }}</span>
+                <span>{{ workout.session.programBlockName }}</span>
+                <span>{{ formatDate(workout.session.date) }}</span>
               </span>
             </div>
           </div>
@@ -87,7 +87,7 @@
                 type="button"
                 (click)="toggleReaction(workout, emoji)"
               >
-                {{ emoji }}
+                <span class="reaction-emoji">{{ emoji }}</span>
                 @if (reactionCount(workout, emoji) > 0) {
                   <span class="reaction-count">{{ reactionCount(workout, emoji) }}</span>
                 }
@@ -124,6 +124,7 @@
               @if (myProfile()) {
                 <div class="add-comment">
                   <input
+                    class="comment-input"
                     type="text"
                     placeholder="Write a comment…"
                     [ngModel]="(commentInputs()[workout.id] || '')"

@@ -1,6 +1,6 @@
 <section class="history">
   <div class="history-toolbar">
-    <h1>Weekly History</h1>
+    <h1 class="history-title">Weekly History</h1>
     <a class="history-jump" [href]="latestWeekHref()">Latest week</a>
   </div>
   <p class="subtitle">Track each week across your two lower and two upper sessions.</p>
@@ -22,7 +22,7 @@
   <p *ngIf="isLoading()">Loading history...</p>
   <p class="error-message" *ngIf="errorMessage()">{{ errorMessage() }}</p>
 
-  <p *ngIf="!isLoading() && !errorMessage() && filteredWeekGroups().length === 0">
+  <p class="history-empty" *ngIf="!isLoading() && !errorMessage() && filteredWeekGroups().length === 0">
     No workouts saved yet. Log a workout first to start tracking progress.
   </p>
 
@@ -38,21 +38,23 @@
     </header>
 
     <div class="day-grid" *ngIf="isWeekExpanded(week)">
-      <button
-        type="button"
-        class="day-card day-card--selector"
-        *ngFor="let trainingDay of trainingDays"
-        [class.is-active]="selectedDayForWeek(week) === trainingDay"
-        (click)="selectDay(week, trainingDay)"
-      >
-        <div class="day-card__header">
-          <h3>{{ trainingDayLabels[trainingDay] }}</h3>
-          <span class="count-pill">{{ sessionRangeLabel(week, trainingDay) }}</span>
-        </div>
-        <p class="day-card__hint">
-          {{ dayHasSessions(week, trainingDay) ? 'Open day history' : 'No session logged' }}
-        </p>
-      </button>
+      <div class="day-selector-list">
+        <button
+          type="button"
+          class="day-card day-card--selector"
+          *ngFor="let trainingDay of trainingDays"
+          [class.is-active]="selectedDayForWeek(week) === trainingDay"
+          (click)="selectDay(week, trainingDay)"
+        >
+          <div class="day-card__header">
+            <h3>{{ trainingDayLabels[trainingDay] }}</h3>
+            <span class="count-pill">{{ sessionRangeLabel(week, trainingDay) }}</span>
+          </div>
+          <p class="day-card__hint">
+            {{ dayHasSessions(week, trainingDay) ? 'Open day history' : 'No session logged' }}
+          </p>
+        </button>
+      </div>
 
       <section class="day-detail-card">
         <div class="day-card__header">
@@ -72,20 +74,20 @@
           </div>
 
           <article class="session" *ngFor="let session of pagedSessionsForDay(week, selectedDayForWeek(week)); trackBy: trackSession">
-            <header>
+            <header class="session__header">
               <h4>{{ session.date }}</h4>
               <p class="program-block-label">{{ session.programBlockName }}</p>
-              <p *ngIf="session.notes">{{ session.notes }}</p>
+              <p class="session__notes" *ngIf="session.notes">{{ session.notes }}</p>
             </header>
 
             <section class="block" *ngFor="let block of session.blocks">
               <h5>{{ block.name }}</h5>
-              <ul>
-                <li *ngFor="let movement of block.movements">
+              <ul class="block__movement-list">
+                <li class="block__movement-item" *ngFor="let movement of block.movements">
                   <strong>{{ movement.movementName }}</strong>
                   <span *ngIf="movement.notes"> — {{ movement.notes }}</span>
-                  <ul>
-                    <li *ngFor="let setEntry of movement.setEntries">
+                  <ul class="block__set-list">
+                    <li class="block__set-item" *ngFor="let setEntry of movement.setEntries">
                       Set {{ setEntry.setNumber }}:
                       <span *ngIf="setEntry.reps !== null">{{ setEntry.reps }} reps</span>
                       <span *ngIf="setEntry.reps !== null && setEntry.load !== null">, </span>

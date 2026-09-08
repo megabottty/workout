@@ -139,6 +139,28 @@ textarea {
   min-width: 0;
 }
 
+.remove-set-icon {
+  display: none;
+}
+
+.movement-history-details {
+  margin: 0;
+}
+
+.movement-history-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #334155;
+  padding: 0.3rem 0;
+  min-height: 2.25rem;
+  display: flex;
+  align-items: center;
+}
+
+.movement-history-details .movement-history-list {
+  margin-top: 0.45rem;
+}
+
 .movement-reference {
   border: 1px dashed #cbd5e1;
   border-radius: 0.7rem;
@@ -401,7 +423,6 @@ button {
   .meta-actions button,
   .block > button,
   .movement-main > button,
-  .set-row .remove-set,
   .add-set {
     width: 100%;
   }
@@ -413,6 +434,59 @@ button {
 
   .movement-reference {
     order: 2;
+  }
+
+  // Compact, horizontally-laid-out set rows so several sets can be scanned
+  // without excessive scrolling on a phone screen.
+  .set-grid {
+    gap: 0.5rem;
+  }
+
+  .set-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+    padding: 0.5rem 0.55rem;
+  }
+
+  .set-row h4 {
+    flex: 0 0 auto;
+    align-self: center;
+    min-width: 2.1rem;
+    text-align: center;
+    font-size: 0.82rem;
+  }
+
+  .set-row label {
+    flex: 1 1 0;
+    min-width: 0;
+    font-size: 0.72rem;
+  }
+
+  .set-row input {
+    font-size: 16px;
+  }
+
+  .set-row .remove-set {
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0.4rem 0.5rem;
+    align-self: center;
+  }
+
+  .remove-set-full {
+    display: none;
+  }
+
+  .remove-set-icon {
+    display: inline;
+    font-size: 1rem;
+  }
+
+  .movement-history-details summary {
+    font-size: 0.9rem;
   }
 
   .program-block-context,
@@ -497,4 +571,37 @@ button {
   color: #166534;
   font-size: 0.875rem;
   margin: 0;
+}
+
+@media (max-width: 400px) {
+  .log-workout {
+    padding: 0.7rem;
+    gap: 1rem;
+  }
+
+  h1 {
+    font-size: 1.25rem;
+  }
+
+  .subtitle {
+    font-size: 0.85rem;
+  }
+
+  .set-row {
+    gap: 0.35rem;
+    padding: 0.45rem;
+  }
+
+  .set-row h4 {
+    min-width: 1.8rem;
+    font-size: 0.78rem;
+  }
+
+  .set-row label {
+    font-size: 0.68rem;
+  }
+
+  .movement-row {
+    padding: 0.5rem;
+  }
 }

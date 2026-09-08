@@ -383,6 +383,14 @@ export class WorkoutLogComponent {
     return item.id;
   }
 
+  trackBySetNumber(_index: number, item: { setNumber: number }): number {
+    return item.setNumber;
+  }
+
+  trackBySessionId(_index: number, item: { sessionId: string }): string {
+    return item.sessionId;
+  }
+
   async shareWorkout(): Promise<void> {
     const session = this.lastSavedSession();
     if (!session) {
@@ -594,10 +602,19 @@ export class WorkoutLogComponent {
     }
   }
 
-  onSetLoadBlur(movement: DraftMovement, setNumber: number): void {
+  onSetLoadBlur(movement: DraftMovement, setNumber: number, event?: Event): void {
     const activeSet = movement.setEntries.find((setEntry) => setEntry.setNumber === setNumber);
     if (!activeSet) {
       return;
+    }
+
+    // Read the value straight from the input at blur time (rather than trusting the
+    // ngModel-bound property) so a stale/lagging model can never cause a truncated
+    // value (e.g. "1" instead of "100") to get copied into the other sets.
+    const target = event?.target as HTMLInputElement | undefined;
+    if (target) {
+      const parsed = target.value === '' ? null : Number(target.value);
+      activeSet.load = parsed === null || Number.isNaN(parsed) ? null : parsed;
     }
 
     const nextLoad = activeSet.load;

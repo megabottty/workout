@@ -199,6 +199,50 @@ describe('WorkoutLogComponent', () => {
     ]);
   });
 
+  it('fills the full typed value into other sets via a real DOM blur event, even if the bound model lagged', async () => {
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    component.blocks = [
+      {
+        id: 'block-1',
+        name: 'Block 1',
+        movements: [
+          {
+            id: 'move-1',
+            movementName: 'Back squat',
+            setEntries: [
+              { setNumber: 1, reps: null, load: null },
+              { setNumber: 2, reps: null, load: null },
+            ],
+            notes: '',
+          },
+        ],
+      },
+    ];
+    fixture.detectChanges();
+
+    const setRows = fixture.nativeElement.querySelectorAll('.set-row');
+    expect(setRows.length).toBe(2);
+
+    const firstLoadInput = setRows[0].querySelectorAll('input')[1] as HTMLInputElement;
+    const secondLoadInput = setRows[1].querySelectorAll('input')[1] as HTMLInputElement;
+    expect(firstLoadInput).toBeTruthy();
+    expect(secondLoadInput).toBeTruthy();
+
+    // Simulate the browser committing the full typed value to the DOM element
+    // (even if, for whatever reason, the bound model property lagged behind).
+    firstLoadInput.value = '100';
+    firstLoadInput.dispatchEvent(new Event('input'));
+    firstLoadInput.dispatchEvent(new Event('blur'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component.blocks[0].movements[0].setEntries[1].load).toBe(100);
+    expect(secondLoadInput.value).toBe('100');
+  });
+
   it('preserves custom set loads once a movement already has loads', () => {
     const movement: {
       id: string;

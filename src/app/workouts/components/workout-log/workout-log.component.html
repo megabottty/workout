@@ -104,13 +104,14 @@
           </label>
 
           <div class="set-grid">
-            <article class="set-row" *ngFor="let setEntry of movement.setEntries; let setIndex = index">
+            <article class="set-row" *ngFor="let setEntry of movement.setEntries; trackBy: trackBySetNumber; let setIndex = index">
               <h4>Set {{ setEntry.setNumber }}</h4>
               <label>
                 Reps
                 <input
                   type="number"
                   min="0"
+                  inputmode="numeric"
                   [name]="'reps-' + movement.id + '-' + setEntry.setNumber"
                   [(ngModel)]="setEntry.reps"
                 />
@@ -121,13 +122,20 @@
                   type="number"
                   min="0"
                   step="0.5"
+                  inputmode="decimal"
                   [name]="'load-' + movement.id + '-' + setEntry.setNumber"
                   [(ngModel)]="setEntry.load"
-                  (blur)="onSetLoadBlur(movement, setEntry.setNumber)"
+                  (blur)="onSetLoadBlur(movement, setEntry.setNumber, $event)"
                 />
               </label>
-              <button type="button" class="remove-set" (click)="removeSet(movement, setIndex)">
-                Remove set
+              <button
+                type="button"
+                class="remove-set"
+                [attr.aria-label]="'Remove set ' + setEntry.setNumber"
+                (click)="removeSet(movement, setIndex)"
+              >
+                <span class="remove-set-full" aria-hidden="true">Remove set</span>
+                <span class="remove-set-icon" aria-hidden="true">✕</span>
               </button>
             </article>
           </div>
@@ -156,23 +164,26 @@
               <p>{{ reference.movementName }} • {{ reference.blockName }} • {{ reference.sourceDate }}</p>
             </div>
 
-            <ul class="movement-history-list">
-              <li *ngFor="let entry of history">
-                <p class="history-row-title">
-                  {{ entry.sessionDate }} • {{ trainingDayLabels[entry.trainingDay] }} • {{ entry.blockName }}
-                </p>
-                <ul>
-                  <li *ngFor="let setEntry of entry.setEntries">
-                    Set {{ setEntry.setNumber }}:
-                    <span *ngIf="setEntry.reps !== null">{{ setEntry.reps }} reps</span>
-                    <span *ngIf="setEntry.reps !== null && setEntry.load !== null">, </span>
-                    <span *ngIf="setEntry.load !== null">&#64; {{ setEntry.load }} load</span>
-                    <span *ngIf="setEntry.reps === null && setEntry.load === null">Not logged</span>
-                  </li>
-                </ul>
-                <p *ngIf="entry.notes">{{ entry.notes }}</p>
-              </li>
-            </ul>
+            <details class="movement-history-details">
+              <summary>Full history ({{ history.length }})</summary>
+              <ul class="movement-history-list">
+                <li *ngFor="let entry of history; trackBy: trackBySessionId">
+                  <p class="history-row-title">
+                    {{ entry.sessionDate }} • {{ trainingDayLabels[entry.trainingDay] }} • {{ entry.blockName }}
+                  </p>
+                  <ul>
+                    <li *ngFor="let setEntry of entry.setEntries; trackBy: trackBySetNumber">
+                      Set {{ setEntry.setNumber }}:
+                      <span *ngIf="setEntry.reps !== null">{{ setEntry.reps }} reps</span>
+                      <span *ngIf="setEntry.reps !== null && setEntry.load !== null">, </span>
+                      <span *ngIf="setEntry.load !== null">&#64; {{ setEntry.load }} load</span>
+                      <span *ngIf="setEntry.reps === null && setEntry.load === null">Not logged</span>
+                    </li>
+                  </ul>
+                  <p *ngIf="entry.notes">{{ entry.notes }}</p>
+                </li>
+              </ul>
+            </details>
           </aside>
         </ng-container>
       </article>

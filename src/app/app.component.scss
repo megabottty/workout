@@ -64,38 +64,69 @@ button.active {
 
 @media (max-width: 640px) {
   .app-shell {
-    padding: 0.6rem;
-    gap: 0.75rem;
+    padding: 0.5rem;
+    gap: 0.6rem;
   }
 
   header {
-    padding: 0.8rem;
-    border-radius: 0.85rem;
+    gap: 0.55rem;
+    padding: 0.7rem;
+    border-radius: 0.8rem;
   }
 
   h1 {
-    font-size: 1.35rem;
+    font-size: clamp(1.18rem, 4.8vw, 1.3rem);
+    line-height: 1.15;
   }
 
   .signed-in-as {
+    font-size: 0.78rem;
+    line-height: 1.25;
     word-break: break-word;
+    overflow-wrap: anywhere;
   }
 
   nav {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
   }
 
   a,
   button {
     width: 100%;
     text-align: center;
-    min-height: 44px;
+    min-height: 40px;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.95rem;
+    line-height: 1.2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 
 @media (max-width: 420px) {
+  .app-shell {
+    padding: 0.45rem;
+  }
+
+  header {
+    gap: 0.5rem;
+    padding: 0.65rem;
+  }
+
+  h1 {
+    font-size: clamp(1.1rem, 5.3vw, 1.22rem);
+  }
+
   nav {
-    grid-template-columns: 1fr;
+    gap: 0.4rem;
+  }
+
+  a,
+  button {
+    font-size: 0.9rem;
+    padding-inline: 0.45rem;
   }
 }

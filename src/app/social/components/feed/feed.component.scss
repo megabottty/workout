@@ -5,6 +5,7 @@
   margin: 0 auto;
   padding: 1.5rem 1rem;
   overflow-wrap: anywhere;
+  width: 100%;
 
   h2 { margin: 0 0 1.5rem; font-size: 1.4rem; }
 }
@@ -58,7 +59,14 @@
   .card-meta {
     display: flex;
     flex-direction: column;
-    strong { font-size: 0.95rem; }
+    min-width: 0;
+
+    .card-owner-name {
+      font-size: 0.95rem;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
     .owner-chip {
       align-self: flex-start;
       margin-top: 0.2rem;
@@ -70,13 +78,31 @@
       border-radius: 999px;
       padding: 0.1rem 0.45rem;
     }
-    .meta-secondary { font-size: 0.78rem; color: #64748b; }
+    .meta-secondary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.15rem 0.35rem;
+      font-size: 0.78rem;
+      color: #64748b;
+      line-height: 1.4;
+
+      > span {
+        overflow-wrap: anywhere;
+      }
+
+      > span + span::before {
+        content: '·';
+        margin-right: 0.35rem;
+      }
+    }
   }
 
   .caption {
     font-size: 0.9rem;
     color: #374151;
     margin: 0 0 0.75rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
   }
 }
 
@@ -90,6 +116,10 @@
   margin-bottom: 0.75rem;
   display: block;
   min-height: 2.25rem;
+  width: 100%;
+  text-align: left;
+  line-height: 1.4;
+  white-space: normal;
 }
 
 .workout-details {
@@ -115,19 +145,31 @@
   .movement-row {
     display: flex;
     flex-wrap: wrap;
-    align-items: baseline;
+    align-items: flex-start;
     gap: 0.35rem;
     margin-bottom: 0.3rem;
     font-size: 0.85rem;
 
-    .movement-name { font-weight: 600; color: #1e293b; }
-    .sets-summary { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+    .movement-name {
+      font-weight: 600;
+      color: #1e293b;
+      overflow-wrap: anywhere;
+    }
+
+    .sets-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+      min-width: 0;
+    }
+
     .set-chip {
       background: #e0f2fe;
       color: #0369a1;
       border-radius: 4px;
       padding: 0.1rem 0.4rem;
       font-size: 0.75rem;
+      overflow-wrap: anywhere;
     }
   }
 }
@@ -152,9 +194,15 @@
   line-height: 1;
   transition: transform 0.1s;
   min-height: 2.25rem;
+  white-space: normal;
 
   &:hover { transform: scale(1.15); background: #e0f2fe; border-color: #bae6fd; }
   &.reacted { background: #dbeafe; border-color: #93c5fd; }
+
+  .reaction-emoji {
+    font-size: 1.1rem;
+    line-height: 1;
+  }
 
   .reaction-count {
     font-size: 0.75rem;
@@ -177,6 +225,10 @@
   padding: 0.15rem 0;
   margin-bottom: 0.5rem;
   min-height: 2.25rem;
+  width: 100%;
+  text-align: left;
+  line-height: 1.4;
+  white-space: normal;
 }
 
 .comments-list {
@@ -191,8 +243,16 @@
   font-size: 0.85rem;
   padding: 0.25rem 0;
 
-  .comment-author { font-weight: 700; flex-shrink: 0; }
-  .comment-text { color: #374151; }
+  .comment-author {
+    font-weight: 700;
+    flex-shrink: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .comment-text {
+    color: #374151;
+    overflow-wrap: anywhere;
+  }
 }
 
 .no-comments { font-size: 0.8rem; color: #94a3b8; padding: 0.25rem 0; }
@@ -200,13 +260,16 @@
 .add-comment {
   display: flex;
   gap: 0.4rem;
+  align-items: stretch;
 
-  input {
+  .comment-input {
     flex: 1;
     padding: 0.45rem 0.6rem;
     border: 1px solid #d0d7de;
     border-radius: 6px;
     font-size: 0.875rem;
+    min-width: 0;
+    min-height: 2.5rem;
   }
 }
 
@@ -246,32 +309,155 @@
 @media (max-width: 640px) {
   .feed-page {
     padding: 1rem 0.75rem;
+
+    h2 {
+      margin-bottom: 1rem;
+      font-size: 1.25rem;
+    }
   }
 
   .card {
     padding: 0.95rem;
+    border-radius: 12px;
+  }
+
+  .workout-card {
+    .card-header {
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 0.65rem;
+    }
+
+    .avatar {
+      width: 38px;
+      height: 38px;
+      font-size: 0.82rem;
+    }
+
+    .card-meta {
+      width: 100%;
+
+      .card-owner-name {
+        font-size: 1rem;
+      }
+
+      .owner-chip {
+        margin-top: 0.3rem;
+      }
+
+      .meta-secondary {
+        margin-top: 0.2rem;
+        font-size: 0.78rem;
+      }
+    }
+
+    .caption {
+      margin-bottom: 0.65rem;
+      font-size: 0.92rem;
+    }
   }
 
   .toggle-details,
   .toggle-comments {
-    width: 100%;
-    text-align: left;
-    font-size: 0.9rem;
+    font-size: 16px;
+    min-height: 44px;
   }
 
   .add-comment {
     flex-direction: column;
+    gap: 0.5rem;
   }
 
-  .add-comment input,
-  .btn-post {
+  .add-comment .comment-input,
+  .btn-post,
+  .btn-import {
     width: 100%;
     font-size: 16px;
+    min-height: 44px;
   }
 
   .reactions-bar {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.45rem;
   }
 
-  .card-meta .meta-secondary { font-size: 0.72rem; }
+  .reaction-btn {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+    padding: 0.55rem 0.65rem;
+
+    &:hover {
+      transform: none;
+    }
+  }
+
+  .workout-details {
+    padding: 0.7rem;
+
+    .movement-row {
+      flex-direction: column;
+      gap: 0.3rem;
+      margin-bottom: 0.55rem;
+    }
+
+    .sets-summary {
+      width: 100%;
+    }
+  }
+
+  .comment-item {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.45rem 0;
+
+    .comment-author {
+      flex-shrink: 1;
+    }
+  }
+
+  .comments-list {
+    margin-bottom: 0.65rem;
+  }
+
+  .card-meta .meta-secondary { font-size: 0.78rem; }
+}
+
+@media (max-width: 400px) {
+  .feed-page {
+    padding: 0.85rem 0.65rem;
+  }
+
+  .card {
+    padding: 0.8rem;
+  }
+
+  .workout-card {
+    .card-header {
+      gap: 0.65rem;
+    }
+
+    .avatar {
+      width: 36px;
+      height: 36px;
+    }
+
+    .card-meta .meta-secondary {
+      flex-direction: column;
+      gap: 0.1rem;
+
+      > span + span::before {
+        content: none;
+      }
+    }
+  }
+
+  .reactions-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .reaction-btn {
+    padding-inline: 0.55rem;
+  }
 }
