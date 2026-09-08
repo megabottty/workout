@@ -407,7 +407,15 @@ button {
     font-size: 16px;
   }
 
-  .session-meta,
+  .session-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+
+  .session-meta label:first-child {
+    grid-column: 1 / -1;
+  }
+
   .set-grid {
     grid-template-columns: 1fr;
   }
@@ -489,7 +497,14 @@ button {
     font-size: 0.9rem;
   }
 
-  .program-block-context,
+  .program-block-context {
+    align-items: center;
+  }
+
+  .program-block-context button {
+    flex: 1 1 auto;
+  }
+
   .modal-actions {
     flex-direction: column;
     align-items: stretch;
@@ -603,5 +618,9 @@ button {
 
   .movement-row {
     padding: 0.5rem;
+  }
+
+  .session-meta {
+    gap: 0.5rem;
   }
 }

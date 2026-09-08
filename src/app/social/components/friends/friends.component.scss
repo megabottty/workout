@@ -275,77 +275,45 @@
 
 @media (max-width: 640px) {
   .friends-page {
-    padding: 1rem 0.75rem;
+    padding: 1rem 0.75rem 1.25rem;
 
     h2 {
       margin-bottom: 1rem;
-      font-size: 1.25rem;
+      font-size: 1.2rem;
     }
   }
 
   .card {
-    padding: 0.95rem;
-    margin-bottom: 1rem;
+    padding: 0.9rem 1rem;
+    border-radius: 14px;
+    border-color: #e5eaf1;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    margin-bottom: 0.875rem;
 
     h3 {
-      margin-bottom: 0.85rem;
-      flex-wrap: wrap;
+      margin-bottom: 0.75rem;
+      font-size: 0.95rem;
     }
   }
 
+  .hint { margin: -0.35rem 0 0.65rem; }
+
   .search-row {
-    flex-direction: column;
-    gap: 0.65rem;
-  }
+    input {
+      min-height: 44px;
+      font-size: 16px;
+    }
 
-  .search-row input,
-  .search-row button,
-  .btn-add,
-  .btn-accept,
-  .btn-decline,
-  .btn-remove,
-  .btn-secondary {
-    width: 100%;
-    font-size: 16px;
-    min-height: 44px;
-  }
-
-  .search-row input {
-    min-height: 44px;
-    padding: 0.75rem 0.85rem;
-  }
-
-  .hint,
-  .empty-state,
-  .profile-link-hint,
-  .req-name,
-  .result-name,
-  .friend-name,
-  .notification-content p {
-    font-size: 0.95rem;
+    button { min-height: 44px; }
   }
 
   .request-item,
   .result-item,
   .friend-item,
   .notification-item {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.75rem;
-    padding: 0.75rem 0;
-  }
-
-  .request-main,
-  .result-main,
-  .friend-main,
-  .notification-main {
-    width: 100%;
-    align-items: flex-start;
-  }
-
-  .result-action {
-    margin-left: 0;
-    width: 100%;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.6rem;
+    padding: 0.6rem 0;
   }
 
   .request-actions {
@@ -355,37 +323,28 @@
     gap: 0.5rem;
   }
 
-  .friend-action,
-  .notification-action {
-    width: 100%;
+  .btn-add,
+  .btn-accept,
+  .btn-decline,
+  .btn-remove,
+  .btn-secondary {
+    min-height: 40px;
+    font-size: 0.85rem;
   }
 
   .chip-friend,
   .chip-pending {
-    display: flex;
-    width: 100%;
-    border-radius: 12px;
-    padding: 0.55rem 0.8rem;
+    font-size: 0.78rem;
     line-height: 1.35;
-  }
-
-  .badge {
-    font-size: 0.8rem;
   }
 }
 
 @media (max-width: 400px) {
-  .friends-page {
-    padding: 0.85rem 0.65rem;
-  }
+  .friends-page { padding: 0.85rem 0.65rem 1rem; }
 
-  .card {
-    padding: 0.85rem;
-  }
+  .card { padding: 0.8rem 0.85rem; }
 
-  .request-actions {
-    grid-template-columns: 1fr;
-  }
+  .request-actions { grid-template-columns: 1fr; }
 
   .avatar-sm {
     width: 32px;

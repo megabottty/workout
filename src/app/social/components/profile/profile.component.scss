@@ -117,29 +117,16 @@
 }
 
 @media (max-width: 640px) {
-  .profile-page {
-    padding: 1rem 0.75rem 1.25rem;
-  }
+  .profile-page { padding: 1rem 0.75rem 1.25rem; }
 
-  .profile-card {
-    gap: 0.9rem;
-  }
+  .profile-card { gap: 0.85rem; }
 
-  .profile-card h2 {
-    font-size: 1.25rem;
-  }
+  .profile-card h2 { font-size: 1.2rem; }
 
-  .avatar-preview {
-    align-items: flex-start;
-    gap: 0.7rem;
-  }
-
-  .avatar-preview .avatar-copy {
-    width: 100%;
-  }
-
-  .form-group label {
-    font-size: 0.95rem;
+  .avatar-preview .avatar {
+    width: 48px;
+    height: 48px;
+    font-size: 1.1rem;
   }
 
   .form-group input,
@@ -148,35 +135,11 @@
     font-size: 16px;
   }
 
-  .form-actions {
-    width: 100%;
-  }
+  .form-actions { width: 100%; }
 }
 
 @media (max-width: 400px) {
-  .profile-page {
-    padding: 0.85rem 0.65rem 1rem;
-  }
+  .profile-page { padding: 0.85rem 0.65rem 1rem; }
 
-  .profile-card {
-    gap: 0.8rem;
-  }
-
-  .profile-card h2 {
-    font-size: 1.15rem;
-  }
-
-  .avatar-preview {
-    gap: 0.6rem;
-  }
-
-  .avatar-preview .avatar {
-    width: 48px;
-    height: 48px;
-    font-size: 1.1rem;
-  }
-
-  .avatar-preview .display-name-preview {
-    font-size: 1rem;
-  }
+  .profile-card { gap: 0.75rem; }
 }

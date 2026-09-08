@@ -87,14 +87,24 @@ button.active {
   }
 
   nav {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: flex;
     gap: 0.45rem;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    padding-bottom: 0.15rem;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
   }
 
-  a,
-  button {
-    width: 100%;
+  nav a,
+  nav button {
+    width: auto;
+    flex: 0 0 auto;
     text-align: center;
     min-height: 40px;
     padding: 0.35rem 0.55rem;
@@ -124,8 +134,8 @@ button.active {
     gap: 0.4rem;
   }
 
-  a,
-  button {
+  nav a,
+  nav button {
     font-size: 0.9rem;
     padding-inline: 0.45rem;
   }
