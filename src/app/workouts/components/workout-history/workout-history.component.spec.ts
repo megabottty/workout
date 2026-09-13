@@ -128,6 +128,55 @@ describe('WorkoutHistoryComponent', () => {
     expect(pageText).toContain('Program Block 2');
     expect(pageText).not.toContain('2026-07-21');
   });
+
+  it('supports toggling view mode and searching movement history', () => {
+    const sessionWithMovements: WorkoutSession = {
+      id: 's-m',
+      date: '2026-07-20',
+      trainingDay: 'lower-a',
+      programBlockId: 'block-1',
+      programBlockName: 'Block 1',
+      notes: '',
+      blocks: [
+        {
+          id: 'b1',
+          name: 'Main',
+          movements: [
+            {
+              id: 'm1',
+              movementName: 'Front Squat',
+              setEntries: [{ setNumber: 1, reps: 5, load: '225' }],
+              notes: 'Clean grip',
+            },
+            {
+              id: 'm2',
+              movementName: 'Romanian Deadlift',
+              setEntries: [{ setNumber: 1, reps: 8, load: '275' }],
+              notes: '',
+            },
+          ],
+        },
+      ],
+      createdAt: '2026-07-20T00:00:00.000Z',
+      updatedAt: '2026-07-20T00:00:00.000Z',
+    };
+
+    component.allSessions.set([sessionWithMovements]);
+    component.setViewMode('by-movement');
+    fixture.detectChanges();
+
+    expect(component.viewMode()).toBe('by-movement');
+    expect(component.allMovementNames()).toContain('Front Squat');
+    expect(component.allMovementNames()).toContain('Romanian Deadlift');
+
+    component.movementSearchQuery.set('Front');
+    expect(component.filteredMovementOptions()).toEqual(['Front Squat']);
+
+    component.selectMovement('Front Squat');
+    expect(component.selectedMovementName()).toBe('Front Squat');
+    expect(component.selectedMovementHistory().length).toBe(1);
+    expect(component.selectedMovementPB()?.maxLoad).toBe(225);
+  });
 });
 
 function makeSession(

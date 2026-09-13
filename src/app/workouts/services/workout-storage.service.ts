@@ -17,6 +17,8 @@ export type SaveWorkoutInput = {
   trainingDay: TrainingDay;
   programBlockId: string;
   programBlockName: string;
+  weekNumber?: number;
+  customWeekName?: string;
   notes: string;
   blocks: Array<{
     name: string;
@@ -25,7 +27,7 @@ export type SaveWorkoutInput = {
       setEntries: Array<{
         setNumber: number;
         reps: number | null;
-        load: number | null;
+        load: number | string | null;
       }>;
       notes: string;
     }>;
@@ -125,7 +127,7 @@ export class WorkoutStorageService {
       }
     }
 
-    const data = {
+    const data: Record<string, unknown> = {
       date: input.date,
       trainingDay: input.trainingDay,
       programBlockId: normalizedProgramBlock.id,
@@ -148,6 +150,13 @@ export class WorkoutStorageService {
       createdAt,
       updatedAt: now,
     };
+
+    if (typeof input.weekNumber === 'number' && Number.isFinite(input.weekNumber)) {
+      data['weekNumber'] = Math.max(1, Math.floor(input.weekNumber));
+    }
+    if (typeof input.customWeekName === 'string' && input.customWeekName.trim()) {
+      data['customWeekName'] = input.customWeekName.trim();
+    }
 
     await setDoc(sessionRef, data);
 
@@ -209,6 +218,12 @@ export class WorkoutStorageService {
     }
 
     const normalizedProgramBlock = normalizeProgramBlock(candidate.programBlockId, candidate.programBlockName);
+    const weekNumber = typeof candidate.weekNumber === 'number' && Number.isFinite(candidate.weekNumber)
+      ? Math.max(1, Math.floor(candidate.weekNumber))
+      : undefined;
+    const customWeekName = typeof candidate.customWeekName === 'string' && candidate.customWeekName.trim().length > 0
+      ? candidate.customWeekName.trim()
+      : undefined;
 
     return {
       id: candidate.id,
@@ -216,6 +231,8 @@ export class WorkoutStorageService {
       trainingDay: this.normalizeTrainingDay(candidate.trainingDay),
       programBlockId: normalizedProgramBlock.id,
       programBlockName: normalizedProgramBlock.name,
+      ...(weekNumber !== undefined ? { weekNumber } : {}),
+      ...(customWeekName !== undefined ? { customWeekName } : {}),
       notes: candidate.notes,
       createdAt: candidate.createdAt,
       updatedAt: candidate.updatedAt,
@@ -346,7 +363,7 @@ export class WorkoutStorageService {
 
     const sets = this.normalizeNullableNumber(candidate.sets);
     const reps = this.normalizeNullableNumber(candidate.reps);
-    const load = this.normalizeNullableNumber(candidate.load);
+    const load = this.normalizeNullableLoad(candidate.load);
     const filledSets = sets ?? ((reps !== null || load !== null) ? 1 : 0);
 
     return Array.from({ length: Math.max(2, filledSets) }, (_value, index) => ({
@@ -369,8 +386,30 @@ export class WorkoutStorageService {
     return {
       setNumber,
       reps: this.normalizeNullableNumber(candidate.reps),
-      load: this.normalizeNullableNumber(candidate.load),
+      load: this.normalizeNullableLoad(candidate.load),
     };
+  }
+
+  private normalizeNullableLoad(value: unknown): number | string | null {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null;
+    }
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      const parsed = Number(trimmed);
+      if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
+        return parsed;
+      }
+      return trimmed;
+    }
+
+    return null;
   }
 
   private normalizeNullableNumber(value: unknown): number | null {

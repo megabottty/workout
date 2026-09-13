@@ -15,38 +15,52 @@ import {
   normalizeTotalWeeks,
   parseTemplateMovements,
 } from '../../utils/program-block.utils';
+import {
+  PersonalBest,
+  calculateMovementPersonalBests,
+  formatLoadDisplay,
+  isNewPersonalRecord,
+  parseNumericLoad,
+} from '../../utils/personal-best.utils';
+import {
+  WorkoutDraft,
+  clearWorkoutDraft,
+  loadWorkoutDraft,
+  saveWorkoutDraft,
+} from '../../utils/draft-storage.utils';
 import { TRAINING_DAY_LABELS, TRAINING_DAY_ORDER } from '../../utils/workout-history.utils';
 
-type DraftMovement = {
+export type DraftMovement = {
   id: string;
   movementName: string;
   setEntries: Array<{
     setNumber: number;
     reps: number | null;
-    load: number | null;
+    load: number | string | null;
   }>;
   notes: string;
+  keyboardMode?: 'numeric' | 'text';
 };
 
-type DraftBlock = {
+export type DraftBlock = {
   id: string;
   name: string;
   movements: DraftMovement[];
 };
 
-type MovementReference = {
+export type MovementReference = {
   sourceDate: string;
   blockName: string;
   movementName: string;
   setEntries: Array<{
     setNumber: number;
     reps: number | null;
-    load: number | null;
+    load: number | string | null;
   }>;
   notes: string;
 };
 
-type MovementHistoryEntry = {
+export type MovementHistoryEntry = {
   sessionId: string;
   sessionDate: string;
   trainingDay: TrainingDay;
@@ -55,7 +69,7 @@ type MovementHistoryEntry = {
   setEntries: Array<{
     setNumber: number;
     reps: number | null;
-    load: number | null;
+    load: number | string | null;
   }>;
   notes: string;
 };
@@ -76,9 +90,20 @@ export class WorkoutLogComponent {
   readonly workoutDate = signal(new Date().toISOString().slice(0, 10));
   readonly trainingDay = signal<TrainingDay>('lower-a');
   readonly selectedProgramBlockId = signal(DEFAULT_PROGRAM_BLOCK_ID);
-  readonly showAllProgramBlockHistory = signal(false);
+  readonly showAllProgramBlockHistory = signal(true);
   readonly workoutNotes = signal('');
+  readonly manualWeekNumber = signal<number | null>(null);
+  readonly customWeekName = signal('');
+  readonly isManualWeek = signal(false);
   blocks: DraftBlock[] = [this.createBlock(1)];
+
+  // Edit / Reordering Mode
+  readonly isEditMode = signal(false);
+  readonly draggedMovement = signal<{ blockId: string; index: number } | null>(null);
+  readonly dragOverTarget = signal<{ blockId: string; index: number } | null>(null);
+
+  // Draft persistence
+  readonly isDraftRestored = signal(false);
 
   readonly saveMessage = signal('');
   readonly isEditingExisting = signal(false);
@@ -97,8 +122,11 @@ export class WorkoutLogComponent {
   readonly shareRecipients = signal<ShareRecipientOption[]>([]);
   readonly selectedShareRecipientUids = signal<Set<string>>(new Set());
 
+  // Program Block Modal (Create & Edit)
   readonly isProgramBlockModalOpen = signal(false);
-  readonly isCreatingProgramBlock = signal(false);
+  readonly modalMode = signal<'create' | 'edit'>('create');
+  readonly modalEditingBlockId = signal('');
+  readonly isSavingProgramBlock = signal(false);
   readonly modalErrorMessage = signal('');
   readonly modalProgramBlockName = signal('');
   readonly modalProgramBlockTotalWeeks = signal(8);
@@ -158,7 +186,7 @@ export class WorkoutLogComponent {
     return sorted[0]?.date ?? null;
   });
 
-  readonly currentProgramWeek = computed(() => {
+  readonly computedProgramWeek = computed(() => {
     const startDate = this.selectedProgramBlockStartDate();
     if (!startDate) {
       return 1;
@@ -167,14 +195,24 @@ export class WorkoutLogComponent {
     return this.weekNumberWithinProgramBlock(this.workoutDate(), startDate);
   });
 
+  readonly currentProgramWeek = computed(() => {
+    if (this.isManualWeek() && this.manualWeekNumber() !== null) {
+      return this.manualWeekNumber()!;
+    }
+    return this.computedProgramWeek();
+  });
+
   readonly currentProgramWeekLabel = computed(() => {
+    const currentWeek = this.currentProgramWeek();
+    const customName = this.customWeekName().trim();
     const definition = this.selectedProgramBlockDefinition();
-    if (!definition) {
-      return `Week ${this.currentProgramWeek()}`;
+    const totalWeeksPart = definition ? ` of ${definition.totalWeeks}` : '';
+
+    if (customName) {
+      return `${customName} (Week ${currentWeek}${totalWeeksPart})`;
     }
 
-    const currentWeek = this.currentProgramWeek();
-    return `Week ${Math.min(currentWeek, definition.totalWeeks)} of ${definition.totalWeeks}`;
+    return `Week ${currentWeek}${totalWeeksPart}`;
   });
 
   readonly sessionsForMovementHistory = computed(() => {
@@ -202,7 +240,8 @@ export class WorkoutLogComponent {
 
   readonly movementOptions = computed(() => {
     const names = new Set<string>();
-    for (const session of this.sessionsForMovementHistory()) {
+    // From all sessions across all blocks
+    for (const session of this.allSessions()) {
       for (const block of session.blocks) {
         for (const movement of block.movements) {
           const name = movement.movementName.trim();
@@ -212,8 +251,23 @@ export class WorkoutLogComponent {
         }
       }
     }
+    // From all program block templates
+    for (const def of this.programBlockDefinitions()) {
+      for (const day of TRAINING_DAY_ORDER) {
+        for (const template of def.templatesByDay[day] ?? []) {
+          const name = template.movementName.trim();
+          if (name.length > 0) {
+            names.add(name);
+          }
+        }
+      }
+    }
     return Array.from(names).sort((a, b) => a.localeCompare(b));
   });
+
+  readonly personalBests = computed(() =>
+    calculateMovementPersonalBests(this.allSessions())
+  );
 
   readonly movementHistoryByName = computed(() => {
     const history = new Map<string, MovementHistoryEntry[]>();
@@ -265,6 +319,7 @@ export class WorkoutLogComponent {
 
   private loadToken = 0;
   private loadedShareRecipientsForUid = '';
+  private autoSaveTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     private readonly workoutStorage: WorkoutStorageService,
@@ -287,8 +342,99 @@ export class WorkoutLogComponent {
     }, { allowSignalWrites: true });
   }
 
+  // ─── Edit Mode & Drag-and-Drop Reordering ─────────────────────────────────
+
+  toggleEditMode(): void {
+    this.isEditMode.update((v) => !v);
+  }
+
+  onDragStart(event: DragEvent, blockId: string, index: number): void {
+    this.draggedMovement.set({ blockId, index });
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', `${blockId}:${index}`);
+    }
+  }
+
+  onDragOver(event: DragEvent, blockId: string, index: number): void {
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'move';
+    }
+    this.dragOverTarget.set({ blockId, index });
+  }
+
+  onDragLeave(event: DragEvent): void {
+    const relatedTarget = event.relatedTarget as HTMLElement | null;
+    if (!relatedTarget || !relatedTarget.closest('.movement-row')) {
+      this.dragOverTarget.set(null);
+    }
+  }
+
+  onDrop(event: DragEvent, targetBlockId: string, targetIndex: number): void {
+    event.preventDefault();
+    const source = this.draggedMovement();
+    this.draggedMovement.set(null);
+    this.dragOverTarget.set(null);
+
+    if (!source) return;
+
+    const sourceBlock = this.blocks.find((b) => b.id === source.blockId);
+    const targetBlock = this.blocks.find((b) => b.id === targetBlockId);
+    if (!sourceBlock || !targetBlock) return;
+
+    const [movedMovement] = sourceBlock.movements.splice(source.index, 1);
+    if (!movedMovement) return;
+
+    targetBlock.movements.splice(targetIndex, 0, movedMovement);
+    this.scheduleAutoSaveDraft();
+  }
+
+  onDragEnd(): void {
+    this.draggedMovement.set(null);
+    this.dragOverTarget.set(null);
+  }
+
+  moveMovementUp(blockId: string, index: number): void {
+    if (index <= 0) return;
+    const block = this.blocks.find((b) => b.id === blockId);
+    if (!block) return;
+
+    const item = block.movements[index];
+    block.movements[index] = block.movements[index - 1];
+    block.movements[index - 1] = item;
+    this.scheduleAutoSaveDraft();
+  }
+
+  moveMovementDown(blockId: string, index: number): void {
+    const block = this.blocks.find((b) => b.id === blockId);
+    if (!block || index >= block.movements.length - 1) return;
+
+    const item = block.movements[index];
+    block.movements[index] = block.movements[index + 1];
+    block.movements[index + 1] = item;
+    this.scheduleAutoSaveDraft();
+  }
+
+  moveMovementToBlock(sourceBlockId: string, movementId: string, targetBlockId: string): void {
+    if (sourceBlockId === targetBlockId) return;
+    const sourceBlock = this.blocks.find((b) => b.id === sourceBlockId);
+    const targetBlock = this.blocks.find((b) => b.id === targetBlockId);
+    if (!sourceBlock || !targetBlock) return;
+
+    const index = sourceBlock.movements.findIndex((m) => m.id === movementId);
+    if (index === -1) return;
+
+    const [moved] = sourceBlock.movements.splice(index, 1);
+    targetBlock.movements.push(moved);
+    this.scheduleAutoSaveDraft();
+  }
+
+  // ─── Block & Movement Management ──────────────────────────────────────────
+
   addBlock(): void {
     this.blocks.push(this.createBlock(this.blocks.length + 1));
+    this.scheduleAutoSaveDraft();
   }
 
   removeBlock(blockId: string): void {
@@ -297,6 +443,7 @@ export class WorkoutLogComponent {
     }
 
     this.blocks = this.blocks.filter((block) => block.id !== blockId);
+    this.scheduleAutoSaveDraft();
   }
 
   addMovement(blockId: string): void {
@@ -306,6 +453,7 @@ export class WorkoutLogComponent {
     }
 
     block.movements.push(this.createMovement());
+    this.scheduleAutoSaveDraft();
   }
 
   removeMovement(blockId: string, movementId: string): void {
@@ -315,6 +463,7 @@ export class WorkoutLogComponent {
     }
 
     block.movements = block.movements.filter((movement) => movement.id !== movementId);
+    this.scheduleAutoSaveDraft();
   }
 
   addSet(movement: DraftMovement): void {
@@ -324,6 +473,7 @@ export class WorkoutLogComponent {
       reps: null,
       load: defaultLoad,
     });
+    this.scheduleAutoSaveDraft();
   }
 
   removeSet(movement: DraftMovement, setIndex: number): void {
@@ -336,7 +486,108 @@ export class WorkoutLogComponent {
       ...setEntry,
       setNumber: index + 1,
     }));
+    this.scheduleAutoSaveDraft();
   }
+
+  toggleKeyboardMode(movement: DraftMovement): void {
+    movement.keyboardMode = movement.keyboardMode === 'text' ? 'numeric' : 'text';
+    this.scheduleAutoSaveDraft();
+  }
+
+  isTextMode(movement: DraftMovement): boolean {
+    return movement.keyboardMode === 'text';
+  }
+
+  // ─── Personal Best & PR helpers ───────────────────────────────────────────
+
+  personalBestFor(movementName: string): PersonalBest | null {
+    const normalized = movementName.trim().toLowerCase();
+    if (!normalized) return null;
+    return this.personalBests().get(normalized) ?? null;
+  }
+
+  isSetPR(movementName: string, load: number | string | null, reps: number | null): boolean {
+    const pb = this.personalBestFor(movementName);
+    return isNewPersonalRecord(load, reps, pb);
+  }
+
+  // ─── Manual Week Controls ─────────────────────────────────────────────────
+
+  toggleManualWeek(): void {
+    this.isManualWeek.update((v) => !v);
+    if (this.isManualWeek() && this.manualWeekNumber() === null) {
+      this.manualWeekNumber.set(this.computedProgramWeek());
+    }
+    this.scheduleAutoSaveDraft();
+  }
+
+  onManualWeekChange(val: number): void {
+    this.manualWeekNumber.set(val);
+    this.scheduleAutoSaveDraft();
+  }
+
+  onCustomWeekNameChange(val: string): void {
+    this.customWeekName.set(val);
+    this.scheduleAutoSaveDraft();
+  }
+
+  // ─── Draft Persistence ────────────────────────────────────────────────────
+
+  onFieldChange(): void {
+    this.scheduleAutoSaveDraft();
+  }
+
+  discardDraft(): void {
+    const user = this.authService.user();
+    if (user) {
+      clearWorkoutDraft(user.uid, this.workoutDate(), this.trainingDay(), this.selectedProgramBlockId());
+    }
+    this.isDraftRestored.set(false);
+    this.loadSelectionFromCache(this.workoutDate(), this.trainingDay(), true);
+  }
+
+  private scheduleAutoSaveDraft(): void {
+    if (this.autoSaveTimeout) {
+      clearTimeout(this.autoSaveTimeout);
+    }
+    this.autoSaveTimeout = setTimeout(() => {
+      this.saveDraftToStorage();
+    }, 400);
+  }
+
+  private saveDraftToStorage(): void {
+    const user = this.authService.user();
+    if (!user) return;
+
+    const draft: WorkoutDraft = {
+      userId: user.uid,
+      workoutDate: this.workoutDate(),
+      trainingDay: this.trainingDay(),
+      programBlockId: this.selectedProgramBlockId(),
+      weekNumber: this.isManualWeek() && this.manualWeekNumber() !== null ? this.manualWeekNumber()! : undefined,
+      customWeekName: this.customWeekName().trim() || undefined,
+      workoutNotes: this.workoutNotes(),
+      blocks: this.blocks.map((b) => ({
+        id: b.id,
+        name: b.name,
+        movements: b.movements.map((m) => ({
+          id: m.id,
+          movementName: m.movementName,
+          setEntries: m.setEntries.map((s) => ({
+            setNumber: s.setNumber,
+            reps: s.reps,
+            load: s.load,
+          })),
+          notes: m.notes,
+        })),
+      })),
+      savedAt: new Date().toISOString(),
+    };
+
+    saveWorkoutDraft(draft);
+  }
+
+  // ─── Save & Share Workout ─────────────────────────────────────────────────
 
   async saveWorkout(): Promise<void> {
     const wasEditingExisting = this.isEditingExisting();
@@ -349,6 +600,8 @@ export class WorkoutLogComponent {
         trainingDay: this.trainingDay(),
         programBlockId: this.selectedProgramBlockId(),
         programBlockName: this.selectedProgramBlockName(),
+        weekNumber: this.isManualWeek() && this.manualWeekNumber() !== null ? this.manualWeekNumber()! : undefined,
+        customWeekName: this.customWeekName().trim() || undefined,
         notes: this.workoutNotes(),
         blocks: this.blocks
           .filter((block) => block.name.trim().length > 0 || block.movements.some((movement) => movement.movementName.trim().length > 0))
@@ -371,6 +624,9 @@ export class WorkoutLogComponent {
 
       this.lastSavedSession.set(saved);
       this.isEditingExisting.set(true);
+      this.isDraftRestored.set(false);
+      clearWorkoutDraft(userId, this.workoutDate(), this.trainingDay(), this.selectedProgramBlockId());
+
       this.saveMessage.set(`${wasEditingExisting ? 'Updated' : 'Saved'} workout for ${this.workoutDate()}.`);
       this.shareMessage.set('');
       await this.reloadSessionsCache(userId);
@@ -520,7 +776,11 @@ export class WorkoutLogComponent {
     this.loadSelectionFromCache(this.workoutDate(), this.trainingDay());
   }
 
-  openProgramBlockModal(): void {
+  // ─── Program Block Creation / Editing Modal ───────────────────────────────
+
+  openCreateProgramBlockModal(): void {
+    this.modalMode.set('create');
+    this.modalEditingBlockId.set('');
     this.modalProgramBlockName.set(buildDefaultNextProgramBlockName(this.programBlockOptions()));
     this.modalProgramBlockTotalWeeks.set(8);
     this.modalMovementTemplates.set({
@@ -534,8 +794,36 @@ export class WorkoutLogComponent {
     this.isProgramBlockModalOpen.set(true);
   }
 
+  openEditProgramBlockModal(): void {
+    const definition = this.selectedProgramBlockDefinition();
+    this.modalMode.set('edit');
+    this.modalEditingBlockId.set(this.selectedProgramBlockId());
+    this.modalProgramBlockName.set(definition?.name ?? this.selectedProgramBlockName());
+    this.modalProgramBlockTotalWeeks.set(definition?.totalWeeks ?? 8);
+
+    const templates: Record<TrainingDay, string> = {
+      'lower-a': '',
+      'upper-a': '',
+      'lower-b': '',
+      'upper-b': '',
+    };
+
+    if (definition) {
+      for (const day of TRAINING_DAY_ORDER) {
+        templates[day] = (definition.templatesByDay[day] ?? [])
+          .map((m) => m.movementName)
+          .join('\n');
+      }
+    }
+
+    this.modalMovementTemplates.set(templates);
+    this.errorMessage.set('');
+    this.modalErrorMessage.set('');
+    this.isProgramBlockModalOpen.set(true);
+  }
+
   closeProgramBlockModal(): void {
-    if (this.isCreatingProgramBlock()) {
+    if (this.isSavingProgramBlock()) {
       return;
     }
 
@@ -551,7 +839,7 @@ export class WorkoutLogComponent {
     }));
   }
 
-  async createProgramBlockFromModal(): Promise<void> {
+  async saveProgramBlockFromModal(): Promise<void> {
     const name = this.modalProgramBlockName().trim();
     const totalWeeks = normalizeTotalWeeks(this.modalProgramBlockTotalWeeks());
     const templates = this.modalMovementTemplates();
@@ -568,13 +856,15 @@ export class WorkoutLogComponent {
       'upper-b': parseTemplateMovements(templates['upper-b']),
     };
 
-    this.isCreatingProgramBlock.set(true);
+    this.isSavingProgramBlock.set(true);
     this.errorMessage.set('');
     this.modalErrorMessage.set('');
 
     try {
       const userId = this.requireUserId();
-      const blockId = crypto.randomUUID();
+      const isEdit = this.modalMode() === 'edit';
+      const blockId = isEdit && this.modalEditingBlockId() ? this.modalEditingBlockId() : crypto.randomUUID();
+
       const definition = await this.workoutStorage.saveProgramBlockDefinition(userId, {
         id: blockId,
         name,
@@ -587,18 +877,21 @@ export class WorkoutLogComponent {
         },
       });
 
-      this.programBlockDefinitions.update((existing) => [definition, ...existing]);
+      this.programBlockDefinitions.update((existing) => {
+        const withoutCurrent = existing.filter((d) => d.id !== definition.id);
+        return [definition, ...withoutCurrent];
+      });
+
       this.selectedProgramBlockId.set(definition.id);
-      this.showAllProgramBlockHistory.set(false);
       this.isProgramBlockModalOpen.set(false);
-      this.saveMessage.set(`Started ${definition.name}. You are on Week 1 of ${definition.totalWeeks}.`);
+      this.saveMessage.set(isEdit ? `Updated ${definition.name}.` : `Created ${definition.name}.`);
       this.copiedFromDate.set('');
       this.copyWeekMessage.set('');
       this.loadSelectionFromCache(this.workoutDate(), this.trainingDay());
     } catch (error: unknown) {
-      this.modalErrorMessage.set(error instanceof Error ? error.message : 'Unable to create Program Block.');
+      this.modalErrorMessage.set(error instanceof Error ? error.message : 'Unable to save Program Block.');
     } finally {
-      this.isCreatingProgramBlock.set(false);
+      this.isSavingProgramBlock.set(false);
     }
   }
 
@@ -608,17 +901,22 @@ export class WorkoutLogComponent {
       return;
     }
 
-    // Read the value straight from the input at blur time (rather than trusting the
-    // ngModel-bound property) so a stale/lagging model can never cause a truncated
-    // value (e.g. "1" instead of "100") to get copied into the other sets.
     const target = event?.target as HTMLInputElement | undefined;
     if (target) {
-      const parsed = target.value === '' ? null : Number(target.value);
-      activeSet.load = parsed === null || Number.isNaN(parsed) ? null : parsed;
+      const rawVal = target.value.trim();
+      if (rawVal === '') {
+        activeSet.load = null;
+      } else if (movement.keyboardMode === 'text') {
+        activeSet.load = rawVal;
+      } else {
+        const parsed = Number(rawVal);
+        activeSet.load = Number.isNaN(parsed) ? rawVal : parsed;
+      }
     }
 
     const nextLoad = activeSet.load;
     if (nextLoad === null) {
+      this.scheduleAutoSaveDraft();
       return;
     }
 
@@ -626,6 +924,7 @@ export class WorkoutLogComponent {
       (setEntry) => setEntry.setNumber !== setNumber && setEntry.load !== null
     );
     if (hasOtherLoadedSets) {
+      this.scheduleAutoSaveDraft();
       return;
     }
 
@@ -634,6 +933,7 @@ export class WorkoutLogComponent {
         setEntry.load = nextLoad;
       }
     }
+    this.scheduleAutoSaveDraft();
   }
 
   copyLastWeek(): void {
@@ -655,14 +955,16 @@ export class WorkoutLogComponent {
           load: setEntry.load,
         })),
         notes: movement.notes,
+        keyboardMode: typeof movement.setEntries[0]?.load === 'string' && Number.isNaN(Number(movement.setEntries[0]?.load)) ? 'text' : 'numeric',
       })),
     }));
     this.workoutNotes.set(source.notes);
     this.copiedFromDate.set(source.date);
-    const sourceWeek = this.weekNumberWithinProgramBlock(source.date, this.selectedProgramBlockStartDate() ?? source.date);
+    const sourceWeek = source.weekNumber ?? this.weekNumberWithinProgramBlock(source.date, this.selectedProgramBlockStartDate() ?? source.date);
     const targetWeek = this.currentProgramWeek();
     this.copyWeekMessage.set(`Copied Week ${sourceWeek} into Week ${targetWeek}.`);
     this.errorMessage.set('');
+    this.scheduleAutoSaveDraft();
   }
 
   private createBlock(index: number): DraftBlock {
@@ -679,6 +981,7 @@ export class WorkoutLogComponent {
       movementName,
       setEntries: this.createDefaultSetEntries(),
       notes: '',
+      keyboardMode: 'numeric',
     };
   }
 
@@ -712,9 +1015,12 @@ export class WorkoutLogComponent {
     this.saveMessage.set('');
     this.errorMessage.set('');
     this.workoutNotes.set('');
+    this.manualWeekNumber.set(null);
+    this.customWeekName.set('');
+    this.isManualWeek.set(false);
     this.blocks = [this.createBlock(1)];
     this.selectedProgramBlockId.set(DEFAULT_PROGRAM_BLOCK_ID);
-    this.showAllProgramBlockHistory.set(false);
+    this.showAllProgramBlockHistory.set(true);
     this.copiedFromDate.set('');
     this.copyWeekMessage.set('');
     this.allSessions.set([]);
@@ -724,6 +1030,7 @@ export class WorkoutLogComponent {
     this.loadedShareRecipientsForUid = '';
     this.isProgramBlockModalOpen.set(false);
     this.isLoading.set(false);
+    this.isDraftRestored.set(false);
   }
 
   private async reloadSessionsCache(userId: string): Promise<void> {
@@ -742,7 +1049,7 @@ export class WorkoutLogComponent {
     return user.uid;
   }
 
-  private createDefaultSetEntries(): Array<{ setNumber: number; reps: number | null; load: number | null }> {
+  private createDefaultSetEntries(): Array<{ setNumber: number; reps: number | null; load: number | string | null }> {
     return Array.from({ length: 2 }, (_value, index) => ({
       setNumber: index + 1,
       reps: null,
@@ -751,8 +1058,8 @@ export class WorkoutLogComponent {
   }
 
   private ensureSetEntries(
-    setEntries: Array<{ setNumber: number; reps: number | null; load: number | null }>
-  ): Array<{ setNumber: number; reps: number | null; load: number | null }> {
+    setEntries: Array<{ setNumber: number; reps: number | null; load: number | string | null }>
+  ): Array<{ setNumber: number; reps: number | null; load: number | string | null }> {
     if (setEntries.length > 0) {
       return setEntries.map((setEntry, index) => ({
         ...setEntry,
@@ -803,17 +1110,49 @@ export class WorkoutLogComponent {
     this.selectedProgramBlockId.set(DEFAULT_PROGRAM_BLOCK_ID);
   }
 
-  private loadSelectionFromCache(date: string, day: TrainingDay): void {
+  private loadSelectionFromCache(date: string, day: TrainingDay, forceIgnoreDraft = false): void {
+    const user = this.authService.user();
     const existing = this.allSessions().find((session) =>
       session.date === date &&
       session.trainingDay === day &&
       session.programBlockId === this.selectedProgramBlockId()
     ) ?? null;
 
+    // Check for unsaved draft in localStorage
+    if (!forceIgnoreDraft && user) {
+      const draft = loadWorkoutDraft(user.uid, date, day, this.selectedProgramBlockId());
+      if (draft && draft.blocks && draft.blocks.length > 0) {
+        this.isEditingExisting.set(!!existing);
+        this.lastSavedSession.set(existing);
+        this.workoutNotes.set(draft.workoutNotes || '');
+        this.isManualWeek.set(draft.weekNumber !== undefined || !!draft.customWeekName);
+        this.manualWeekNumber.set(draft.weekNumber ?? null);
+        this.customWeekName.set(draft.customWeekName ?? '');
+        this.blocks = draft.blocks.map((block) => ({
+          id: block.id,
+          name: block.name,
+          movements: block.movements.map((m) => ({
+            id: m.id,
+            movementName: m.movementName,
+            setEntries: this.ensureSetEntries(m.setEntries),
+            notes: m.notes,
+            keyboardMode: typeof m.setEntries[0]?.load === 'string' && Number.isNaN(Number(m.setEntries[0]?.load)) ? 'text' : 'numeric',
+          })),
+        }));
+        this.isDraftRestored.set(true);
+        return;
+      }
+    }
+
+    this.isDraftRestored.set(false);
+
     if (!existing) {
       this.isEditingExisting.set(false);
       this.lastSavedSession.set(null);
       this.workoutNotes.set('');
+      this.manualWeekNumber.set(null);
+      this.customWeekName.set('');
+      this.isManualWeek.set(false);
       this.blocks = this.prefillBlocksFromProgramTemplate(day);
       this.copiedFromDate.set('');
       this.copyWeekMessage.set('');
@@ -823,6 +1162,9 @@ export class WorkoutLogComponent {
     this.isEditingExisting.set(true);
     this.lastSavedSession.set(existing);
     this.workoutNotes.set(existing.notes);
+    this.isManualWeek.set(existing.weekNumber !== undefined || !!existing.customWeekName);
+    this.manualWeekNumber.set(existing.weekNumber ?? null);
+    this.customWeekName.set(existing.customWeekName ?? '');
     this.blocks = existing.blocks.map((block) => ({
       id: block.id,
       name: block.name,
@@ -835,6 +1177,7 @@ export class WorkoutLogComponent {
           load: setEntry.load,
         })),
         notes: movement.notes,
+        keyboardMode: typeof movement.setEntries[0]?.load === 'string' && Number.isNaN(Number(movement.setEntries[0]?.load)) ? 'text' : 'numeric',
       })),
     }));
   }
@@ -896,3 +1239,4 @@ export class WorkoutLogComponent {
     this.loadedShareRecipientsForUid = userId;
   }
 }
+

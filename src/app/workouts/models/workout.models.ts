@@ -3,7 +3,7 @@ export type TrainingDay = 'lower-a' | 'upper-a' | 'lower-b' | 'upper-b';
 export interface SetEntry {
   setNumber: number;
   reps: number | null;
-  load: number | null;
+  load: number | string | null;
 }
 
 export interface MovementEntry {
@@ -25,6 +25,8 @@ export interface WorkoutSession {
   trainingDay: TrainingDay;
   programBlockId: string;
   programBlockName: string;
+  weekNumber?: number;
+  customWeekName?: string;
   notes: string;
   blocks: WorkoutBlock[];
   createdAt: string;

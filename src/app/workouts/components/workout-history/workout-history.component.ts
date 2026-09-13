@@ -4,14 +4,32 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 
 import { AuthService } from '../../../auth/services/auth.service';
-import { TrainingDay, WorkoutSession } from '../../models/workout.models';
+import { SetEntry, TrainingDay, WorkoutSession } from '../../models/workout.models';
 import { WorkoutStorageService } from '../../services/workout-storage.service';
+import {
+  PersonalBest,
+  calculateMovementPersonalBests,
+  isNewPersonalRecord,
+} from '../../utils/personal-best.utils';
 import {
   TRAINING_DAY_LABELS,
   TRAINING_DAY_ORDER,
   WeekGroup,
-  groupSessionsByWeek
+  groupSessionsByWeek,
 } from '../../utils/workout-history.utils';
+
+export interface MovementHistorySessionEntry {
+  sessionId: string;
+  date: string;
+  trainingDay: TrainingDay;
+  programBlockName: string;
+  weekNumber?: number;
+  customWeekName?: string;
+  blockName: string;
+  setEntries: SetEntry[];
+  notes: string;
+  sessionNotes: string;
+}
 
 @Component({
   selector: 'app-workout-history',
@@ -21,6 +39,7 @@ import {
   styleUrl: './workout-history.component.scss',
 })
 export class WorkoutHistoryComponent {
+  readonly viewMode = signal<'by-workout' | 'by-movement'>('by-workout');
   readonly weekGroups = signal<WeekGroup[]>([]);
   readonly allSessions = signal<WorkoutSession[]>([]);
   readonly errorMessage = signal('');
@@ -29,7 +48,13 @@ export class WorkoutHistoryComponent {
   readonly trainingDays = TRAINING_DAY_ORDER;
   readonly trainingDayLabels = TRAINING_DAY_LABELS;
   readonly selectedProgramBlockFilter = signal('all');
+
+  // Movement View State
+  readonly selectedMovementName = signal('');
+  readonly movementSearchQuery = signal('');
+
   readonly hasWeeks = computed(() => this.filteredWeekGroups().length > 0);
+
   readonly programBlockOptions = computed(() => {
     const blocks = new Map<string, string>();
     for (const session of this.allSessions()) {
@@ -42,6 +67,7 @@ export class WorkoutHistoryComponent {
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
   });
+
   readonly filteredWeekGroups = computed(() => {
     const selectedFilter = this.selectedProgramBlockFilter();
     if (selectedFilter === 'all') {
@@ -54,6 +80,73 @@ export class WorkoutHistoryComponent {
         sessions: week.sessions.filter((session) => session.programBlockId === selectedFilter),
       }))
       .filter((week) => week.sessions.length > 0);
+  });
+
+  readonly allMovementNames = computed(() => {
+    const names = new Set<string>();
+    for (const session of this.allSessions()) {
+      for (const block of session.blocks) {
+        for (const movement of block.movements) {
+          const trimmed = movement.movementName.trim();
+          if (trimmed) {
+            names.add(trimmed);
+          }
+        }
+      }
+    }
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  });
+
+  readonly filteredMovementOptions = computed(() => {
+    const query = this.movementSearchQuery().trim().toLowerCase();
+    const all = this.allMovementNames();
+    if (!query) return all;
+    return all.filter((name) => name.toLowerCase().includes(query));
+  });
+
+  readonly personalBests = computed(() =>
+    calculateMovementPersonalBests(this.allSessions())
+  );
+
+  readonly selectedMovementPB = computed(() => {
+    const selected = this.selectedMovementName().trim().toLowerCase();
+    if (!selected) return null;
+    return this.personalBests().get(selected) ?? null;
+  });
+
+  readonly selectedMovementHistory = computed<MovementHistorySessionEntry[]>(() => {
+    const selected = this.selectedMovementName().trim().toLowerCase();
+    if (!selected) return [];
+
+    const history: MovementHistorySessionEntry[] = [];
+    const sessions = this.allSessions().slice().sort((a, b) => b.date.localeCompare(a.date));
+
+    for (const session of sessions) {
+      if (this.selectedProgramBlockFilter() !== 'all' && session.programBlockId !== this.selectedProgramBlockFilter()) {
+        continue;
+      }
+
+      for (const block of session.blocks) {
+        for (const movement of block.movements) {
+          if (movement.movementName.trim().toLowerCase() === selected) {
+            history.push({
+              sessionId: session.id,
+              date: session.date,
+              trainingDay: session.trainingDay,
+              programBlockName: session.programBlockName,
+              weekNumber: session.weekNumber,
+              customWeekName: session.customWeekName,
+              blockName: block.name,
+              setEntries: movement.setEntries,
+              notes: movement.notes,
+              sessionNotes: session.notes,
+            });
+          }
+        }
+      }
+    }
+
+    return history;
   });
 
   private readonly dayPageState = new Map<string, number>();
@@ -76,6 +169,23 @@ export class WorkoutHistoryComponent {
 
       void this.loadHistory(user.uid);
     }, { allowSignalWrites: true });
+  }
+
+  setViewMode(mode: 'by-workout' | 'by-movement'): void {
+    this.viewMode.set(mode);
+    if (mode === 'by-movement' && !this.selectedMovementName() && this.allMovementNames().length > 0) {
+      this.selectedMovementName.set(this.allMovementNames()[0]);
+    }
+  }
+
+  selectMovement(name: string): void {
+    this.selectedMovementName.set(name);
+  }
+
+  personalBestFor(movementName: string): PersonalBest | null {
+    const normalized = movementName.trim().toLowerCase();
+    if (!normalized) return null;
+    return this.personalBests().get(normalized) ?? null;
   }
 
   trackWeek(_index: number, week: WeekGroup): string {
@@ -127,6 +237,10 @@ export class WorkoutHistoryComponent {
 
   trackSession(_index: number, session: { id: string }): string {
     return session.id;
+  }
+
+  trackSetNumber(_index: number, item: { setNumber: number }): number {
+    return item.setNumber;
   }
 
   sessionsForDay(week: WeekGroup, trainingDay: TrainingDay): WorkoutSession[] {
@@ -205,6 +319,10 @@ export class WorkoutHistoryComponent {
       const nextWeeks = groupSessionsByWeek(sessions, 1);
       this.weekGroups.set(nextWeeks);
       this.clampDayPageState(nextWeeks);
+
+      if (!this.selectedMovementName() && this.allMovementNames().length > 0) {
+        this.selectedMovementName.set(this.allMovementNames()[0]);
+      }
     } catch (error: unknown) {
       if (loadToken !== this.loadToken) {
         return;
@@ -248,3 +366,4 @@ export class WorkoutHistoryComponent {
     return this.trainingDays.find((trainingDay) => this.dayHasSessions(week, trainingDay)) ?? this.trainingDays[0];
   }
 }
+

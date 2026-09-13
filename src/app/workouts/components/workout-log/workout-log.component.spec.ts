@@ -50,6 +50,7 @@ describe('WorkoutLogComponent', () => {
           useValue: {
             getProfile: jasmine.createSpy('getProfile').and.resolveTo(null),
             shareWorkout: jasmine.createSpy('shareWorkout').and.resolveTo({}),
+            getAcceptedFriends: jasmine.createSpy('getAcceptedFriends').and.resolveTo([]),
           },
         },
       ],
@@ -119,7 +120,7 @@ describe('WorkoutLogComponent', () => {
     expect(history[1].trainingDay).toBe('upper-a');
   });
 
-  it('scopes movement history to the selected program block by default', () => {
+  it('scopes movement history to all blocks or selected program block based on toggle', () => {
     component.allSessions.set([
       makeSession({
         id: 'same-block',
@@ -138,10 +139,12 @@ describe('WorkoutLogComponent', () => {
     ]);
 
     component.selectedProgramBlockId.set('block-1');
-    expect(component.movementHistoryFor('Back squat').length).toBe(1);
-
-    component.showAllProgramBlockHistory.set(true);
+    // By default, showAllProgramBlockHistory is true so movement history follows into future blocks
+    expect(component.showAllProgramBlockHistory()).toBeTrue();
     expect(component.movementHistoryFor('Back squat').length).toBe(2);
+
+    component.showAllProgramBlockHistory.set(false);
+    expect(component.movementHistoryFor('Back squat').length).toBe(1);
   });
 
   it('syncs the first load across an empty movement', () => {
@@ -273,7 +276,7 @@ describe('WorkoutLogComponent', () => {
   });
 
   it('creates a new program block from modal input', async () => {
-    component.openProgramBlockModal();
+    component.openCreateProgramBlockModal();
     component.modalProgramBlockName.set('Strength Block');
     component.modalProgramBlockTotalWeeks.set(6);
     component.onModalTemplateChange('lower-a', 'Back squat');
@@ -281,7 +284,7 @@ describe('WorkoutLogComponent', () => {
     component.onModalTemplateChange('lower-b', 'Deadlift');
     component.onModalTemplateChange('upper-b', 'Pull up');
 
-    await component.createProgramBlockFromModal();
+    await component.saveProgramBlockFromModal();
 
     expect(component.selectedProgramBlockName()).toBe('Strength Block');
     expect(component.currentProgramWeekLabel()).toBe('Week 1 of 6');
@@ -289,15 +292,70 @@ describe('WorkoutLogComponent', () => {
   });
 
   it('creates a new program block even when templates are blank', async () => {
-    component.openProgramBlockModal();
+    component.openCreateProgramBlockModal();
     component.modalProgramBlockName.set('Quick Block');
     component.modalProgramBlockTotalWeeks.set(4);
 
-    await component.createProgramBlockFromModal();
+    await component.saveProgramBlockFromModal();
 
     expect(component.selectedProgramBlockName()).toBe('Quick Block');
     expect(component.isProgramBlockModalOpen()).toBeFalse();
     expect(component.modalErrorMessage()).toBe('');
+  });
+
+  it('allows reordering movements up and down within a block', () => {
+    component.blocks = [
+      {
+        id: 'block-1',
+        name: 'Block 1',
+        movements: [
+          {
+            id: 'm1',
+            movementName: 'Movement 1',
+            setEntries: [{ setNumber: 1, reps: 5, load: 100 }],
+            notes: '',
+          },
+          {
+            id: 'm2',
+            movementName: 'Movement 2',
+            setEntries: [{ setNumber: 1, reps: 5, load: 100 }],
+            notes: '',
+          },
+        ],
+      },
+    ];
+
+    expect(component.blocks[0].movements[0].movementName).toBe('Movement 1');
+    component.moveMovementDown('block-1', 0);
+    expect(component.blocks[0].movements[0].movementName).toBe('Movement 2');
+    expect(component.blocks[0].movements[1].movementName).toBe('Movement 1');
+
+    component.moveMovementUp('block-1', 1);
+    expect(component.blocks[0].movements[0].movementName).toBe('Movement 1');
+  });
+
+  it('toggles load input mode between number and text', () => {
+    const movement = {
+      id: 'm1',
+      movementName: 'Pull-up',
+      setEntries: [{ setNumber: 1, reps: 8, load: 'BW' }],
+      notes: '',
+      keyboardMode: 'numeric' as const,
+    };
+
+    expect(component.isTextMode(movement)).toBeFalse();
+    component.toggleKeyboardMode(movement);
+    expect(component.isTextMode(movement)).toBeTrue();
+    component.toggleKeyboardMode(movement);
+    expect(component.isTextMode(movement)).toBeFalse();
+  });
+
+  it('allows manual week number setting and custom week naming', () => {
+    component.onManualWeekChange(4);
+    expect(component.manualWeekNumber()).toBe(4);
+
+    component.onCustomWeekNameChange('Deload Week');
+    expect(component.customWeekName()).toBe('Deload Week');
   });
 });
 

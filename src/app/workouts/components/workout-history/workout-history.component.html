@@ -1,9 +1,30 @@
 <section class="history">
   <div class="history-toolbar">
-    <h1 class="history-title">Weekly History</h1>
-    <a class="history-jump" [href]="latestWeekHref()">Latest week</a>
+    <div>
+      <h1 class="history-title">Workout History</h1>
+      <p class="subtitle">Review your progress over time by workout session or by individual movement.</p>
+    </div>
+    <a *ngIf="viewMode() === 'by-workout'" class="history-jump" [href]="latestWeekHref()">Latest week</a>
   </div>
-  <p class="subtitle">Track each week across your two lower and two upper sessions.</p>
+
+  <div class="view-mode-tabs">
+    <button
+      type="button"
+      class="tab-btn"
+      [class.is-active]="viewMode() === 'by-workout'"
+      (click)="setViewMode('by-workout')"
+    >
+      📅 By Workout (Weekly)
+    </button>
+    <button
+      type="button"
+      class="tab-btn"
+      [class.is-active]="viewMode() === 'by-movement'"
+      (click)="setViewMode('by-movement')"
+    >
+      🏋️ By Movement (Exercise History)
+    </button>
+  </div>
 
   <label class="program-block-filter" *ngIf="programBlockOptions().length > 0">
     Program Block
@@ -22,89 +43,188 @@
   <p *ngIf="isLoading()">Loading history...</p>
   <p class="error-message" *ngIf="errorMessage()">{{ errorMessage() }}</p>
 
-  <p class="history-empty" *ngIf="!isLoading() && !errorMessage() && filteredWeekGroups().length === 0">
-    No workouts saved yet. Log a workout first to start tracking progress.
-  </p>
+  <!-- ════════════════════════════════════════════════════════════════════════ -->
+  <!-- View Mode 1: By Workout (Weekly Grouping)                                -->
+  <!-- ════════════════════════════════════════════════════════════════════════ -->
+  <ng-container *ngIf="viewMode() === 'by-workout'">
+    <p class="history-empty" *ngIf="!isLoading() && !errorMessage() && filteredWeekGroups().length === 0">
+      No workouts saved yet. Log a workout first to start tracking progress.
+    </p>
 
-  <section class="week" *ngFor="let week of filteredWeekGroups(); trackBy: trackWeek" [attr.id]="weekElementId(week)">
-    <header class="week-header">
-      <div>
-        <h2>{{ week.weekLabel }}</h2>
-        <p class="week-subtitle">Browse each training day with paged session history.</p>
+    <section class="week" *ngFor="let week of filteredWeekGroups(); trackBy: trackWeek" [attr.id]="weekElementId(week)">
+      <header class="week-header">
+        <div>
+          <h2>{{ week.weekLabel }}</h2>
+          <p class="week-subtitle">Browse each training day with paged session history.</p>
+        </div>
+        <button type="button" class="week-toggle" (click)="toggleWeek(week)">
+          {{ isWeekExpanded(week) ? 'Collapse week' : 'Expand week' }}
+        </button>
+      </header>
+
+      <div class="day-grid" *ngIf="isWeekExpanded(week)">
+        <div class="day-selector-list">
+          <button
+            type="button"
+            class="day-card day-card--selector"
+            *ngFor="let trainingDay of trainingDays"
+            [class.is-active]="selectedDayForWeek(week) === trainingDay"
+            (click)="selectDay(week, trainingDay)"
+          >
+            <div class="day-card__header">
+              <h3>{{ trainingDayLabels[trainingDay] }}</h3>
+              <span class="count-pill">{{ sessionRangeLabel(week, trainingDay) }}</span>
+            </div>
+            <p class="day-card__hint">
+              {{ dayHasSessions(week, trainingDay) ? 'Open day history' : 'No session logged' }}
+            </p>
+          </button>
+        </div>
+
+        <section class="day-detail-card">
+          <div class="day-card__header">
+            <h3>{{ trainingDayLabels[selectedDayForWeek(week)] }}</h3>
+            <span class="count-pill">{{ sessionRangeLabel(week, selectedDayForWeek(week)) }}</span>
+          </div>
+
+          <ng-container *ngIf="selectedDaySessionsForWeek(week).length > 0; else noSession">
+            <div class="pager" *ngIf="totalPagesForDay(week, selectedDayForWeek(week)) > 1">
+              <button type="button" (click)="goToPreviousPage(week, selectedDayForWeek(week))" [disabled]="!canGoPreviousPage(week, selectedDayForWeek(week))">
+                Prev
+              </button>
+              <span>Page {{ currentDayPage(week, selectedDayForWeek(week)) }} / {{ totalPagesForDay(week, selectedDayForWeek(week)) }}</span>
+              <button type="button" (click)="goToNextPage(week, selectedDayForWeek(week))" [disabled]="!canGoNextPage(week, selectedDayForWeek(week))">
+                Next
+              </button>
+            </div>
+
+            <article class="session" *ngFor="let session of pagedSessionsForDay(week, selectedDayForWeek(week)); trackBy: trackSession">
+              <header class="session__header">
+                <h4>{{ session.date }}</h4>
+                <div class="session-meta-chips">
+                  <span class="program-block-label">{{ session.programBlockName }}</span>
+                  <span class="week-number-badge" *ngIf="session.weekNumber">Week {{ session.weekNumber }}</span>
+                  <span class="custom-week-badge" *ngIf="session.customWeekName">{{ session.customWeekName }}</span>
+                </div>
+                <p class="session__notes" *ngIf="session.notes">{{ session.notes }}</p>
+              </header>
+
+              <section class="block" *ngFor="let block of session.blocks">
+                <h5>{{ block.name }}</h5>
+                <ul class="block__movement-list">
+                  <li class="block__movement-item" *ngFor="let movement of block.movements">
+                    <div class="movement-title-row">
+                      <strong>{{ movement.movementName }}</strong>
+                      <span class="pb-badge-mini" *ngIf="personalBestFor(movement.movementName) as pb" title="All-time personal best">
+                        🏆 PB: {{ pb.loadDisplay }}
+                      </span>
+                    </div>
+                    <span class="movement-note" *ngIf="movement.notes"> — {{ movement.notes }}</span>
+                    <ul class="block__set-list">
+                      <li class="block__set-item" *ngFor="let setEntry of movement.setEntries; trackBy: trackSetNumber">
+                        Set {{ setEntry.setNumber }}:
+                        <span *ngIf="setEntry.reps !== null">{{ setEntry.reps }} reps</span>
+                        <span *ngIf="setEntry.reps !== null && setEntry.load !== null">, </span>
+                        <span *ngIf="setEntry.load !== null">&#64; {{ setEntry.load }} load</span>
+                        <span *ngIf="setEntry.reps === null && setEntry.load === null">Not logged</span>
+                      </li>
+                    </ul>
+                  </li>
+                </ul>
+              </section>
+            </article>
+          </ng-container>
+
+          <ng-template #noSession>
+            <p class="empty-day">No session logged for this day</p>
+          </ng-template>
+        </section>
       </div>
-      <button type="button" class="week-toggle" (click)="toggleWeek(week)">
-        {{ isWeekExpanded(week) ? 'Collapse week' : 'Expand week' }}
-      </button>
-    </header>
+    </section>
+  </ng-container>
 
-    <div class="day-grid" *ngIf="isWeekExpanded(week)">
-      <div class="day-selector-list">
+  <!-- ════════════════════════════════════════════════════════════════════════ -->
+  <!-- View Mode 2: By Movement (Exercise History Drilldown)                   -->
+  <!-- ════════════════════════════════════════════════════════════════════════ -->
+  <section class="movement-view-panel" *ngIf="viewMode() === 'by-movement'">
+    <div class="movement-selector-panel">
+      <label>
+        Search Movement
+        <input
+          type="text"
+          placeholder="Filter movements... e.g. Squat"
+          [ngModel]="movementSearchQuery()"
+          (ngModelChange)="movementSearchQuery.set($event)"
+        />
+      </label>
+
+      <div class="movement-chip-cloud" *ngIf="filteredMovementOptions().length > 0">
         <button
           type="button"
-          class="day-card day-card--selector"
-          *ngFor="let trainingDay of trainingDays"
-          [class.is-active]="selectedDayForWeek(week) === trainingDay"
-          (click)="selectDay(week, trainingDay)"
+          class="movement-select-chip"
+          *ngFor="let name of filteredMovementOptions()"
+          [class.is-selected]="selectedMovementName() === name"
+          (click)="selectMovement(name)"
         >
-          <div class="day-card__header">
-            <h3>{{ trainingDayLabels[trainingDay] }}</h3>
-            <span class="count-pill">{{ sessionRangeLabel(week, trainingDay) }}</span>
-          </div>
-          <p class="day-card__hint">
-            {{ dayHasSessions(week, trainingDay) ? 'Open day history' : 'No session logged' }}
-          </p>
+          {{ name }}
         </button>
       </div>
 
-      <section class="day-detail-card">
-        <div class="day-card__header">
-          <h3>{{ trainingDayLabels[selectedDayForWeek(week)] }}</h3>
-          <span class="count-pill">{{ sessionRangeLabel(week, selectedDayForWeek(week)) }}</span>
+      <p class="history-empty" *ngIf="filteredMovementOptions().length === 0">
+        No movements match "{{ movementSearchQuery() }}".
+      </p>
+    </div>
+
+    <section class="movement-detail-container" *ngIf="selectedMovementName()">
+      <div class="movement-summary-card">
+        <div class="summary-header">
+          <h2>{{ selectedMovementName() }}</h2>
+          <span class="count-pill">{{ selectedMovementHistory().length }} logged session{{ selectedMovementHistory().length === 1 ? '' : 's' }}</span>
         </div>
 
-        <ng-container *ngIf="selectedDaySessionsForWeek(week).length > 0; else noSession">
-          <div class="pager" *ngIf="totalPagesForDay(week, selectedDayForWeek(week)) > 1">
-            <button type="button" (click)="goToPreviousPage(week, selectedDayForWeek(week))" [disabled]="!canGoPreviousPage(week, selectedDayForWeek(week))">
-              Prev
-            </button>
-            <span>Page {{ currentDayPage(week, selectedDayForWeek(week)) }} / {{ totalPagesForDay(week, selectedDayForWeek(week)) }}</span>
-            <button type="button" (click)="goToNextPage(week, selectedDayForWeek(week))" [disabled]="!canGoNextPage(week, selectedDayForWeek(week))">
-              Next
-            </button>
+        <div class="pb-card" *ngIf="selectedMovementPB() as pb">
+          <div class="pb-card-icon">🏆</div>
+          <div class="pb-card-content">
+            <span class="pb-card-label">All-Time Personal Best</span>
+            <span class="pb-card-value">{{ pb.loadDisplay }} <span *ngIf="pb.reps">for {{ pb.reps }} reps</span></span>
+            <span class="pb-card-meta">Achieved on {{ pb.date }} ({{ trainingDayLabels[pb.trainingDay] }}) in {{ pb.blockName }}</span>
           </div>
+        </div>
+      </div>
 
-          <article class="session" *ngFor="let session of pagedSessionsForDay(week, selectedDayForWeek(week)); trackBy: trackSession">
-            <header class="session__header">
-              <h4>{{ session.date }}</h4>
-              <p class="program-block-label">{{ session.programBlockName }}</p>
-              <p class="session__notes" *ngIf="session.notes">{{ session.notes }}</p>
-            </header>
+      <div class="movement-history-timeline">
+        <h3>Session History</h3>
 
-            <section class="block" *ngFor="let block of session.blocks">
-              <h5>{{ block.name }}</h5>
-              <ul class="block__movement-list">
-                <li class="block__movement-item" *ngFor="let movement of block.movements">
-                  <strong>{{ movement.movementName }}</strong>
-                  <span *ngIf="movement.notes"> — {{ movement.notes }}</span>
-                  <ul class="block__set-list">
-                    <li class="block__set-item" *ngFor="let setEntry of movement.setEntries">
-                      Set {{ setEntry.setNumber }}:
-                      <span *ngIf="setEntry.reps !== null">{{ setEntry.reps }} reps</span>
-                      <span *ngIf="setEntry.reps !== null && setEntry.load !== null">, </span>
-                      <span *ngIf="setEntry.load !== null">&#64; {{ setEntry.load }} load</span>
-                      <span *ngIf="setEntry.reps === null && setEntry.load === null">Not logged</span>
-                    </li>
-                  </ul>
-                </li>
-              </ul>
-            </section>
-          </article>
-        </ng-container>
+        <p class="history-empty" *ngIf="selectedMovementHistory().length === 0">
+          No history logged for this movement in the selected Program Block.
+        </p>
 
-        <ng-template #noSession>
-          <p class="empty-day">No session logged for this day</p>
-        </ng-template>
-      </section>
-    </div>
+        <article class="timeline-entry" *ngFor="let entry of selectedMovementHistory()">
+          <header class="timeline-header">
+            <div>
+              <h4>{{ entry.date }} • {{ trainingDayLabels[entry.trainingDay] }}</h4>
+              <div class="timeline-chips">
+                <span class="timeline-block-badge">{{ entry.programBlockName }} — {{ entry.blockName }}</span>
+                <span class="week-number-badge" *ngIf="entry.weekNumber">Week {{ entry.weekNumber }}</span>
+                <span class="custom-week-badge" *ngIf="entry.customWeekName">{{ entry.customWeekName }}</span>
+              </div>
+            </div>
+          </header>
+
+          <ul class="timeline-set-list">
+            <li *ngFor="let setEntry of entry.setEntries; trackBy: trackSetNumber">
+              <strong>Set {{ setEntry.setNumber }}:</strong>
+              <span *ngIf="setEntry.reps !== null">{{ setEntry.reps }} reps</span>
+              <span *ngIf="setEntry.reps !== null && setEntry.load !== null"> &#64; </span>
+              <span *ngIf="setEntry.load !== null">{{ setEntry.load }} load</span>
+              <span *ngIf="setEntry.reps === null && setEntry.load === null">Not logged</span>
+            </li>
+          </ul>
+
+          <p class="timeline-notes" *ngIf="entry.notes"><strong>Movement notes:</strong> {{ entry.notes }}</p>
+          <p class="timeline-session-notes" *ngIf="entry.sessionNotes"><strong>Workout notes:</strong> {{ entry.sessionNotes }}</p>
+        </article>
+      </div>
+    </section>
   </section>
 </section>
