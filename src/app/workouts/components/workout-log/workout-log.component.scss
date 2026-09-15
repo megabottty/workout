@@ -45,6 +45,16 @@
   min-height: auto;
 }
 
+.unsaved-changes-banner {
+  padding: 0.55rem 1rem;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 0.65rem;
+  color: #92400e;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
 form {
   display: grid;
   gap: 1.25rem;
@@ -235,6 +245,41 @@ textarea {
 .movement-input-label {
   flex: 1;
   min-width: 160px;
+}
+
+.duplicate-name-prompt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  margin-top: -0.35rem;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 0.5rem;
+  color: #92400e;
+  font-size: 0.82rem;
+
+  button {
+    font-size: 0.78rem;
+    padding: 0.25rem 0.55rem;
+    min-height: auto;
+    border-radius: 0.4rem;
+    cursor: pointer;
+  }
+}
+
+.btn-use-suggestion {
+  border: 1px solid #92400e;
+  background: #92400e;
+  color: #fff;
+}
+
+.btn-keep-typed {
+  border: 1px solid #d0d7dc;
+  background: #fff;
+  color: #475569;
 }
 
 .pb-badge {
@@ -471,6 +516,7 @@ textarea {
 .actions {
   display: flex;
   gap: 0.75rem;
+  padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
 }
 
 button {
@@ -818,6 +864,11 @@ button {
   .log-workout {
     padding: 0.7rem;
     gap: 1rem;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .actions {
+    padding-bottom: calc(1.75rem + env(safe-area-inset-bottom, 0px));
   }
 
   h1 {

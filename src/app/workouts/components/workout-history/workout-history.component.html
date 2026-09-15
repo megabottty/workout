@@ -148,15 +148,26 @@
   <!-- ════════════════════════════════════════════════════════════════════════ -->
   <section class="movement-view-panel" *ngIf="viewMode() === 'by-movement'">
     <div class="movement-selector-panel">
-      <label>
-        Search Movement
-        <input
-          type="text"
-          placeholder="Filter movements... e.g. Squat"
-          [ngModel]="movementSearchQuery()"
-          (ngModelChange)="movementSearchQuery.set($event)"
-        />
-      </label>
+      <div class="movement-selector-header">
+        <label>
+          Search Movement
+          <input
+            type="text"
+            placeholder="Filter movements... e.g. Squat"
+            [ngModel]="movementSearchQuery()"
+            (ngModelChange)="movementSearchQuery.set($event)"
+          />
+        </label>
+
+        <button
+          type="button"
+          class="btn-consolidate"
+          *ngIf="hasMovementNameClusters()"
+          (click)="openConsolidationModal()"
+        >
+          🧹 Consolidate similar movements ({{ movementNameClusters().length }})
+        </button>
+      </div>
 
       <div class="movement-chip-cloud" *ngIf="filteredMovementOptions().length > 0">
         <button
@@ -227,4 +238,53 @@
       </div>
     </section>
   </section>
+
+  <!-- ════════════════════════════════════════════════════════════════════════ -->
+  <!-- Movement consolidation modal ("did you mean X?" cleanup tool)            -->
+  <!-- ════════════════════════════════════════════════════════════════════════ -->
+  <div class="modal-backdrop" *ngIf="showConsolidationModal()" (click)="closeConsolidationModal()">
+    <div class="consolidation-modal" (click)="$event.stopPropagation()">
+      <header class="consolidation-modal-header">
+        <h2>Consolidate similar movements</h2>
+        <button type="button" class="modal-close-btn" (click)="closeConsolidationModal()" aria-label="Close">✕</button>
+      </header>
+
+      <p class="consolidation-hint">
+        These movement names look like they might be duplicates. Pick the name you want to keep for each
+        group — merging will rename all matching entries across your workout history and cannot be undone.
+      </p>
+
+      <p class="success-message" *ngIf="consolidationMessage()">{{ consolidationMessage() }}</p>
+      <p class="error-message" *ngIf="consolidationError()">{{ consolidationError() }}</p>
+
+      <div class="consolidation-cluster" *ngFor="let cluster of movementNameClusters()">
+        <div class="consolidation-cluster-names">
+          <span class="consolidation-name-chip" *ngFor="let name of cluster.names">{{ name }}</span>
+        </div>
+
+        <div class="consolidation-cluster-controls">
+          <label>
+            Merge into
+            <select
+              [ngModel]="canonicalNameFor(cluster)"
+              (ngModelChange)="setCanonicalNameFor(cluster, $event)"
+            >
+              <option *ngFor="let name of cluster.names" [value]="name">{{ name }}</option>
+            </select>
+          </label>
+
+          <button
+            type="button"
+            class="btn-merge"
+            [disabled]="isConsolidating()"
+            (click)="mergeCluster(cluster)"
+          >
+            Merge
+          </button>
+        </div>
+      </div>
+
+      <p class="history-empty" *ngIf="!hasMovementNameClusters()">No likely duplicate movement names found. 🎉</p>
+    </div>
+  </div>
 </section>

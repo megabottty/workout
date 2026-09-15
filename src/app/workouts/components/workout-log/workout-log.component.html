@@ -3,8 +3,16 @@
   <p class="subtitle">Log your daily workout, then come back and update that day any time.</p>
 
   <div class="draft-alert" *ngIf="isDraftRestored()">
-    <span class="draft-alert-text">⚡ Restored unsaved workout draft from this browser</span>
+    <span class="draft-alert-text">
+      ⚡ We restored changes you made earlier that were <strong>never saved</strong> to your account (they were only
+      kept locally in this browser). Review them below, then tap <strong>Save workout</strong> to keep them, or
+      discard to start fresh from your last saved version.
+    </span>
     <button type="button" class="btn-discard" (click)="discardDraft()">Discard draft</button>
+  </div>
+
+  <div class="unsaved-changes-banner" *ngIf="hasUnsavedChanges() && !isDraftRestored()">
+    <span>✏️ You have unsaved changes. They're kept locally in this browser until you tap Save/Update workout.</span>
   </div>
 
   <form (ngSubmit)="saveWorkout()" #workoutForm="ngForm">
@@ -170,11 +178,22 @@
                 [name]="'movementName-' + movement.id"
                 [(ngModel)]="movement.movementName"
                 (ngModelChange)="onFieldChange()"
+                (blur)="onMovementNameBlur(movement)"
                 list="movement-options"
                 placeholder="e.g. Back squat"
                 required
               />
             </label>
+
+            <div class="duplicate-name-prompt" *ngIf="duplicateNamePrompt() as prompt" [hidden]="prompt.movementId !== movement.id">
+              <span>Did you mean "<strong>{{ prompt.suggestedName }}</strong>"?</span>
+              <button type="button" class="btn-use-suggestion" (click)="acceptSuggestedMovementName(movement)">
+                Use "{{ prompt.suggestedName }}"
+              </button>
+              <button type="button" class="btn-keep-typed" (click)="dismissDuplicateNamePrompt()">
+                Keep "{{ prompt.typedName }}"
+              </button>
+            </div>
 
             <span class="pb-badge" *ngIf="personalBestFor(movement.movementName) as pb" title="All-time personal best for this exercise">
               🏆 PB: {{ pb.loadDisplay }} <span *ngIf="pb.reps">({{ pb.reps }} reps)</span>

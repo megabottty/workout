@@ -3,6 +3,7 @@ import { LoginComponent } from './auth/components/login/login.component';
 import { authGuard, guestOnlyGuard } from './auth/guards/auth.guard';
 import { WorkoutHistoryComponent } from './workouts/components/workout-history/workout-history.component';
 import { WorkoutLogComponent } from './workouts/components/workout-log/workout-log.component';
+import { unsavedChangesGuard } from './workouts/guards/unsaved-changes.guard';
 import { ProfileComponent } from './social/components/profile/profile.component';
 import { FriendsComponent } from './social/components/friends/friends.component';
 import { FeedComponent } from './social/components/feed/feed.component';
@@ -22,6 +23,7 @@ export const routes: Routes = [
     path: 'workouts/log',
     component: WorkoutLogComponent,
     canActivate: [authGuard],
+    canDeactivate: [unsavedChangesGuard],
   },
   {
     path: 'history',

@@ -17,6 +17,10 @@ import {
   WeekGroup,
   groupSessionsByWeek,
 } from '../../utils/workout-history.utils';
+import {
+  MovementNameCluster,
+  clusterSimilarMovementNames,
+} from '../../utils/movement-similarity.utils';
 
 export interface MovementHistorySessionEntry {
   sessionId: string;
@@ -52,6 +56,13 @@ export class WorkoutHistoryComponent {
   // Movement View State
   readonly selectedMovementName = signal('');
   readonly movementSearchQuery = signal('');
+
+  // Movement consolidation ("did you mean X?") state
+  readonly showConsolidationModal = signal(false);
+  readonly consolidationSelections = signal<Record<string, string>>({});
+  readonly isConsolidating = signal(false);
+  readonly consolidationMessage = signal('');
+  readonly consolidationError = signal('');
 
   readonly hasWeeks = computed(() => this.filteredWeekGroups().length > 0);
 
@@ -96,6 +107,12 @@ export class WorkoutHistoryComponent {
     }
     return Array.from(names).sort((a, b) => a.localeCompare(b));
   });
+
+  readonly movementNameClusters = computed<MovementNameCluster[]>(() =>
+    clusterSimilarMovementNames(this.allMovementNames())
+  );
+
+  readonly hasMovementNameClusters = computed(() => this.movementNameClusters().length > 0);
 
   readonly filteredMovementOptions = computed(() => {
     const query = this.movementSearchQuery().trim().toLowerCase();
@@ -180,6 +197,80 @@ export class WorkoutHistoryComponent {
 
   selectMovement(name: string): void {
     this.selectedMovementName.set(name);
+  }
+
+  openConsolidationModal(): void {
+    const defaults: Record<string, string> = {};
+    for (const cluster of this.movementNameClusters()) {
+      defaults[this.clusterKey(cluster)] = cluster.suggestedCanonicalName;
+    }
+    this.consolidationSelections.set(defaults);
+    this.consolidationMessage.set('');
+    this.consolidationError.set('');
+    this.showConsolidationModal.set(true);
+  }
+
+  closeConsolidationModal(): void {
+    this.showConsolidationModal.set(false);
+  }
+
+  clusterKey(cluster: MovementNameCluster): string {
+    return cluster.names.join('||');
+  }
+
+  canonicalNameFor(cluster: MovementNameCluster): string {
+    return this.consolidationSelections()[this.clusterKey(cluster)] ?? cluster.suggestedCanonicalName;
+  }
+
+  setCanonicalNameFor(cluster: MovementNameCluster, name: string): void {
+    this.consolidationSelections.update((current) => ({
+      ...current,
+      [this.clusterKey(cluster)]: name,
+    }));
+  }
+
+  async mergeCluster(cluster: MovementNameCluster): Promise<void> {
+    const user = this.authService.user();
+    if (!user) return;
+
+    const canonicalName = this.canonicalNameFor(cluster).trim();
+    if (!canonicalName) {
+      this.consolidationError.set('Please choose a name to merge into.');
+      return;
+    }
+
+    const confirmed = typeof window === 'undefined'
+      ? true
+      : window.confirm(
+          `Merge ${cluster.names.length} movement name(s) (${cluster.names.join(', ')}) into "${canonicalName}"? ` +
+            'This will rename these movements across all of your past workouts and cannot be undone.'
+        );
+    if (!confirmed) {
+      return;
+    }
+
+    this.isConsolidating.set(true);
+    this.consolidationError.set('');
+    this.consolidationMessage.set('');
+
+    try {
+      const updatedCount = await this.workoutStorage.renameMovementAcrossSessions(
+        user.uid,
+        cluster.names,
+        canonicalName
+      );
+      this.consolidationMessage.set(
+        `Merged into "${canonicalName}" — updated ${updatedCount} workout${updatedCount === 1 ? '' : 's'}.`
+      );
+      await this.loadHistory(user.uid);
+      if (this.selectedMovementName() && cluster.names.some((name) => name.toLowerCase() === this.selectedMovementName().toLowerCase())) {
+        this.selectedMovementName.set(canonicalName);
+      }
+    } catch (error: unknown) {
+      this.consolidationError.set(error instanceof Error ? error.message : 'Unable to merge movements.');
+    } finally {
+      this.isConsolidating.set(false);
+    }
   }
 
   personalBestFor(movementName: string): PersonalBest | null {

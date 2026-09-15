@@ -11,6 +11,7 @@ import {
   WorkoutSession,
 } from '../models/workout.models';
 import { normalizeProgramBlock } from '../utils/program-block.utils';
+import { normalizeMovementName } from '../utils/movement-similarity.utils';
 
 export type SaveWorkoutInput = {
   date: string;
@@ -54,6 +55,73 @@ export class WorkoutStorageService {
       id: docSnapshot.id,
       ...docSnapshot.data(),
     }));
+  }
+
+  /**
+   * Renames one or more movement names (matched by normalized comparison) to
+   * a single canonical name across every stored session for the user, and
+   * persists the changes back to Firestore. Returns the number of sessions
+   * that were updated.
+   */
+  async renameMovementAcrossSessions(
+    userId: string,
+    fromNames: readonly string[],
+    toName: string
+  ): Promise<number> {
+    const safeUserId = this.assertUserId(userId);
+    const canonicalName = toName.trim();
+    if (!canonicalName) {
+      throw new Error('A canonical movement name is required.');
+    }
+
+    const normalizedFromNames = new Set(fromNames.map((name) => normalizeMovementName(name)));
+    normalizedFromNames.delete(normalizeMovementName(canonicalName));
+    if (normalizedFromNames.size === 0) {
+      return 0;
+    }
+
+    const sessions = await this.getSessions(safeUserId);
+    let updatedCount = 0;
+
+    for (const session of sessions) {
+      let sessionChanged = false;
+      const nextBlocks = session.blocks.map((block) => {
+        const nextMovements = block.movements.map((movement) => {
+          if (normalizedFromNames.has(normalizeMovementName(movement.movementName))) {
+            sessionChanged = true;
+            return { ...movement, movementName: canonicalName };
+          }
+          return movement;
+        });
+        return { ...block, movements: nextMovements };
+      });
+
+      if (!sessionChanged) {
+        continue;
+      }
+
+      const sessionRef = doc(this.firestore, `users/${safeUserId}/workouts/${session.id}`);
+      await setDoc(
+        sessionRef,
+        {
+          blocks: nextBlocks.map((block) => ({
+            id: block.id,
+            name: block.name,
+            movements: block.movements.map((movement) => ({
+              id: movement.id,
+              movementName: movement.movementName,
+              setEntries: movement.setEntries,
+              notes: movement.notes,
+            })),
+          })),
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+      updatedCount++;
+    }
+
+    return updatedCount;
   }
 
   async getProgramBlockDefinitions(userId: string): Promise<ProgramBlockDefinition[]> {

@@ -647,3 +647,144 @@ ul {
     padding: 0.6rem 0.65rem;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════ */
+/* Movement Name Consolidation Tool                                        */
+/* ════════════════════════════════════════════════════════════════════════ */
+
+.movement-selector-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.btn-consolidate {
+  border: 1px solid #f0b429;
+  background: #fffbeb;
+  color: #92400e;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.85rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    background: #fef3c7;
+  }
+}
+
+.success-message {
+  color: #1f7a37;
+  font-weight: 600;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 1000;
+}
+
+.consolidation-modal {
+  background: #fff;
+  border-radius: 1rem;
+  padding: 1.25rem;
+  max-width: 560px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.consolidation-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  h2 {
+    margin: 0;
+    font-size: 1.15rem;
+  }
+}
+
+.modal-close-btn {
+  border: none;
+  background: transparent;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+}
+
+.consolidation-hint {
+  color: #475569;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.consolidation-cluster {
+  border: 1px solid #e5eaf1;
+  border-radius: 0.75rem;
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.consolidation-cluster-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.consolidation-name-chip {
+  background: #f1f5f9;
+  border-radius: 0.4rem;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.85rem;
+  color: #334155;
+}
+
+.consolidation-cluster-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.6rem;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.8rem;
+    color: #475569;
+    gap: 0.25rem;
+  }
+
+  select {
+    border: 1px solid #d0d7e2;
+    border-radius: 0.5rem;
+    padding: 0.45rem 0.6rem;
+    font: inherit;
+  }
+}
+
+.btn-merge {
+  border: 1px solid #1a202c;
+  background: #1a202c;
+  color: #fff;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.9rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}

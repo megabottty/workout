@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, effect, signal } from '@angular/core';
+import { Component, HostListener, computed, effect, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 
@@ -7,6 +7,7 @@ import { AuthService } from '../../../auth/services/auth.service';
 import { SocialStorageService } from '../../../social/services/social-storage.service';
 import { ProgramBlockDefinition, TrainingDay, WorkoutSession } from '../../models/workout.models';
 import { WorkoutStorageService } from '../../services/workout-storage.service';
+import { ComponentCanDeactivate } from '../../guards/unsaved-changes.guard';
 import {
   DEFAULT_PROGRAM_BLOCK_ID,
   DEFAULT_PROGRAM_BLOCK_NAME,
@@ -29,6 +30,7 @@ import {
   saveWorkoutDraft,
 } from '../../utils/draft-storage.utils';
 import { TRAINING_DAY_LABELS, TRAINING_DAY_ORDER } from '../../utils/workout-history.utils';
+import { findLikelyDuplicateMovementName } from '../../utils/movement-similarity.utils';
 
 export type DraftMovement = {
   id: string;
@@ -86,7 +88,7 @@ type ShareRecipientOption = {
   templateUrl: './workout-log.component.html',
   styleUrl: './workout-log.component.scss',
 })
-export class WorkoutLogComponent {
+export class WorkoutLogComponent implements ComponentCanDeactivate {
   readonly workoutDate = signal(new Date().toISOString().slice(0, 10));
   readonly trainingDay = signal<TrainingDay>('lower-a');
   readonly selectedProgramBlockId = signal(DEFAULT_PROGRAM_BLOCK_ID);
@@ -104,6 +106,10 @@ export class WorkoutLogComponent {
 
   // Draft persistence
   readonly isDraftRestored = signal(false);
+  readonly hasUnsavedChanges = signal(false);
+
+  // "Did you mean X?" movement-name duplicate prompt
+  readonly duplicateNamePrompt = signal<{ movementId: string; typedName: string; suggestedName: string } | null>(null);
 
   readonly saveMessage = signal('');
   readonly isEditingExisting = signal(false);
@@ -342,6 +348,19 @@ export class WorkoutLogComponent {
     }, { allowSignalWrites: true });
   }
 
+  /** Used by unsavedChangesGuard (in-app navigation) and beforeunload (tab close/refresh). */
+  canDeactivate(): boolean {
+    return !this.hasUnsavedChanges();
+  }
+
+  @HostListener('window:beforeunload', ['$event'])
+  onBeforeUnload(event: BeforeUnloadEvent): void {
+    if (this.hasUnsavedChanges()) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+  }
+
   // ─── Edit Mode & Drag-and-Drop Reordering ─────────────────────────────────
 
   toggleEditMode(): void {
@@ -537,16 +556,48 @@ export class WorkoutLogComponent {
     this.scheduleAutoSaveDraft();
   }
 
+  // ─── Movement Name Duplicate Detection ("did you mean X?") ────────────────
+
+  onMovementNameBlur(movement: DraftMovement): void {
+    const typedName = movement.movementName.trim();
+    if (!typedName) {
+      this.duplicateNamePrompt.set(null);
+      return;
+    }
+
+    const suggestion = findLikelyDuplicateMovementName(typedName, this.movementOptions());
+    if (suggestion) {
+      this.duplicateNamePrompt.set({ movementId: movement.id, typedName, suggestedName: suggestion });
+    } else if (this.duplicateNamePrompt()?.movementId === movement.id) {
+      this.duplicateNamePrompt.set(null);
+    }
+  }
+
+  acceptSuggestedMovementName(movement: DraftMovement): void {
+    const prompt = this.duplicateNamePrompt();
+    if (!prompt || prompt.movementId !== movement.id) return;
+
+    movement.movementName = prompt.suggestedName;
+    this.duplicateNamePrompt.set(null);
+    this.scheduleAutoSaveDraft();
+  }
+
+  dismissDuplicateNamePrompt(): void {
+    this.duplicateNamePrompt.set(null);
+  }
+
   discardDraft(): void {
     const user = this.authService.user();
     if (user) {
       clearWorkoutDraft(user.uid, this.workoutDate(), this.trainingDay(), this.selectedProgramBlockId());
     }
     this.isDraftRestored.set(false);
+    this.hasUnsavedChanges.set(false);
     this.loadSelectionFromCache(this.workoutDate(), this.trainingDay(), true);
   }
 
   private scheduleAutoSaveDraft(): void {
+    this.hasUnsavedChanges.set(true);
     if (this.autoSaveTimeout) {
       clearTimeout(this.autoSaveTimeout);
     }
@@ -625,6 +676,7 @@ export class WorkoutLogComponent {
       this.lastSavedSession.set(saved);
       this.isEditingExisting.set(true);
       this.isDraftRestored.set(false);
+      this.hasUnsavedChanges.set(false);
       clearWorkoutDraft(userId, this.workoutDate(), this.trainingDay(), this.selectedProgramBlockId());
 
       this.saveMessage.set(`${wasEditingExisting ? 'Updated' : 'Saved'} workout for ${this.workoutDate()}.`);
@@ -1140,11 +1192,13 @@ export class WorkoutLogComponent {
           })),
         }));
         this.isDraftRestored.set(true);
+        this.hasUnsavedChanges.set(true);
         return;
       }
     }
 
     this.isDraftRestored.set(false);
+    this.hasUnsavedChanges.set(false);
 
     if (!existing) {
       this.isEditingExisting.set(false);
