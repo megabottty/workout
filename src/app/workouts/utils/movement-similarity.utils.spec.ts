@@ -2,6 +2,7 @@ import {
   clusterSimilarMovementNames,
   findLikelyDuplicateMovementName,
   normalizeMovementName,
+  shouldRenameMovementName,
   similarityRatio,
 } from './movement-similarity.utils';
 
@@ -15,6 +16,27 @@ describe('movement-similarity.utils', () => {
   describe('similarityRatio', () => {
     it('returns 1 for identical (normalized) strings', () => {
       expect(similarityRatio('Bench Press', 'bench press')).toBe(1);
+    });
+
+    describe('shouldRenameMovementName', () => {
+      it('renames casing and whitespace variants of the canonical name', () => {
+        const sources = ['Bench Press', 'bench  press'];
+
+        expect(shouldRenameMovementName('bench  press', sources, 'Bench Press')).toBeTrue();
+        expect(shouldRenameMovementName(' Bench Press ', sources, 'Bench Press')).toBeTrue();
+      });
+
+      it('does not rewrite a movement that already exactly matches the canonical name', () => {
+        expect(shouldRenameMovementName('Bench Press', ['Bench Press', 'Bench Pres'], 'Bench Press')).toBeFalse();
+      });
+
+      it('renames a fuzzy source name selected for consolidation', () => {
+        expect(shouldRenameMovementName('Bench Pres', ['Bench Press', 'Bench Pres'], 'Bench Press')).toBeTrue();
+      });
+
+      it('does not rename a movement outside the selected sources', () => {
+        expect(shouldRenameMovementName('Incline Bench Press', ['Bench Press'], 'Bench Press')).toBeFalse();
+      });
     });
 
     it('returns a lower ratio for very different strings', () => {

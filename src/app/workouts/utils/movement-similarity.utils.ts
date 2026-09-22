@@ -9,6 +9,26 @@ export function normalizeMovementName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+/**
+ * Returns whether a stored movement should be rewritten during a merge.
+ * Matching uses normalized names so source variants are found, but the
+ * canonical name is compared exactly so casing/spacing variants still get
+ * cleaned up.
+ */
+export function shouldRenameMovementName(
+  movementName: string,
+  fromNames: readonly string[],
+  canonicalName: string
+): boolean {
+  const trimmedCanonicalName = canonicalName.trim();
+  if (!trimmedCanonicalName || movementName === trimmedCanonicalName) {
+    return false;
+  }
+
+  const normalizedSources = new Set(fromNames.map((name) => normalizeMovementName(name)));
+  return normalizedSources.has(normalizeMovementName(movementName));
+}
+
 /** Levenshtein edit distance between two strings. */
 export function levenshteinDistance(a: string, b: string): number {
   if (a === b) return 0;

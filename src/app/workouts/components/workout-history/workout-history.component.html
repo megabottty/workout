@@ -162,10 +162,10 @@
         <button
           type="button"
           class="btn-consolidate"
-          *ngIf="hasMovementNameClusters()"
           (click)="openConsolidationModal()"
         >
-          🧹 Consolidate similar movements ({{ movementNameClusters().length }})
+          🧹 Manage movement names
+          <span *ngIf="hasMovementNameClusters()">({{ movementNameClusters().length }} suggested)</span>
         </button>
       </div>
 
@@ -245,46 +245,106 @@
   <div class="modal-backdrop" *ngIf="showConsolidationModal()" (click)="closeConsolidationModal()">
     <div class="consolidation-modal" (click)="$event.stopPropagation()">
       <header class="consolidation-modal-header">
-        <h2>Consolidate similar movements</h2>
+        <h2>Combine movement names</h2>
         <button type="button" class="modal-close-btn" (click)="closeConsolidationModal()" aria-label="Close">✕</button>
       </header>
 
       <p class="consolidation-hint">
-        These movement names look like they might be duplicates. Pick the name you want to keep for each
-        group — merging will rename all matching entries across your workout history and cannot be undone.
+        Combining names updates matching entries across your entire workout history. Pick the name you want
+        to keep carefully — this cannot be undone.
       </p>
 
       <p class="success-message" *ngIf="consolidationMessage()">{{ consolidationMessage() }}</p>
       <p class="error-message" *ngIf="consolidationError()">{{ consolidationError() }}</p>
 
-      <div class="consolidation-cluster" *ngFor="let cluster of movementNameClusters()">
-        <div class="consolidation-cluster-names">
-          <span class="consolidation-name-chip" *ngFor="let name of cluster.names">{{ name }}</span>
+      <section class="consolidation-section">
+        <h3>Suggested matches</h3>
+        <p class="consolidation-section-hint">
+          These names look similar. Combine each group separately; completed groups disappear after they update.
+        </p>
+
+        <div class="consolidation-cluster" *ngFor="let cluster of movementNameClusters()">
+          <div class="consolidation-cluster-names">
+            <span class="consolidation-name-chip" *ngFor="let name of cluster.names">{{ name }}</span>
+          </div>
+
+          <div class="consolidation-cluster-controls">
+            <label>
+              Keep this name
+              <select
+                [ngModel]="canonicalNameFor(cluster)"
+                (ngModelChange)="setCanonicalNameFor(cluster, $event)"
+              >
+                <option *ngFor="let name of cluster.names" [value]="name">{{ name }}</option>
+              </select>
+            </label>
+
+            <button
+              type="button"
+              class="btn-merge"
+              [disabled]="isConsolidating()"
+              (click)="mergeCluster(cluster)"
+            >
+              Combine group
+            </button>
+          </div>
         </div>
 
-        <div class="consolidation-cluster-controls">
+        <p class="history-empty" *ngIf="!hasMovementNameClusters()">No suggested matches remain.</p>
+      </section>
+
+      <section class="consolidation-section manual-consolidation">
+        <h3>Combine manually</h3>
+        <p class="consolidation-section-hint">
+          Select any two or more movement names, including ones the automatic matching missed.
+        </p>
+
+        <label class="manual-movement-search">
+          Find movement names
+          <input
+            type="search"
+            placeholder="Search movements..."
+            [ngModel]="manualMovementSearchQuery()"
+            (ngModelChange)="manualMovementSearchQuery.set($event)"
+          />
+        </label>
+
+        <div class="manual-movement-list">
+          <label class="manual-movement-option" *ngFor="let name of filteredManualMovementNames()">
+            <input
+              type="checkbox"
+              [ngModel]="isManualMovementSelected(name)"
+              (ngModelChange)="toggleManualMovement(name, $event)"
+            />
+            <span>{{ name }}</span>
+          </label>
+        </div>
+
+        <p class="history-empty" *ngIf="filteredManualMovementNames().length === 0">
+          No movement names match that search.
+        </p>
+
+        <div class="manual-merge-controls" *ngIf="manualSelectedNames().length > 0">
           <label>
-            Merge into
+            Keep this name
             <select
-              [ngModel]="canonicalNameFor(cluster)"
-              (ngModelChange)="setCanonicalNameFor(cluster, $event)"
+              [ngModel]="manualCanonicalName()"
+              (ngModelChange)="manualCanonicalName.set($event)"
             >
-              <option *ngFor="let name of cluster.names" [value]="name">{{ name }}</option>
+              <option *ngFor="let name of manualSelectedNames()" [value]="name">{{ name }}</option>
             </select>
           </label>
 
           <button
             type="button"
             class="btn-merge"
-            [disabled]="isConsolidating()"
-            (click)="mergeCluster(cluster)"
+            [disabled]="isConsolidating() || !canMergeManualSelection()"
+            (click)="mergeManualSelection()"
           >
-            Merge
+            Combine {{ manualSelectedNames().length }} selected
           </button>
         </div>
-      </div>
-
-      <p class="history-empty" *ngIf="!hasMovementNameClusters()">No likely duplicate movement names found. 🎉</p>
+      </section>
     </div>
   </div>
 </section>

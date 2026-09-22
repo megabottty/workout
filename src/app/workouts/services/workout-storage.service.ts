@@ -11,7 +11,9 @@ import {
   WorkoutSession,
 } from '../models/workout.models';
 import { normalizeProgramBlock } from '../utils/program-block.utils';
-import { normalizeMovementName } from '../utils/movement-similarity.utils';
+import {
+  shouldRenameMovementName,
+} from '../utils/movement-similarity.utils';
 
 export type SaveWorkoutInput = {
   date: string;
@@ -74,9 +76,8 @@ export class WorkoutStorageService {
       throw new Error('A canonical movement name is required.');
     }
 
-    const normalizedFromNames = new Set(fromNames.map((name) => normalizeMovementName(name)));
-    normalizedFromNames.delete(normalizeMovementName(canonicalName));
-    if (normalizedFromNames.size === 0) {
+    const sourceNames = fromNames.map((name) => name.trim()).filter(Boolean);
+    if (sourceNames.length === 0) {
       return 0;
     }
 
@@ -87,7 +88,7 @@ export class WorkoutStorageService {
       let sessionChanged = false;
       const nextBlocks = session.blocks.map((block) => {
         const nextMovements = block.movements.map((movement) => {
-          if (normalizedFromNames.has(normalizeMovementName(movement.movementName))) {
+          if (shouldRenameMovementName(movement.movementName, sourceNames, canonicalName)) {
             sessionChanged = true;
             return { ...movement, movementName: canonicalName };
           }

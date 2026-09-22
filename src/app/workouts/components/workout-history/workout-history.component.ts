@@ -63,6 +63,9 @@ export class WorkoutHistoryComponent {
   readonly isConsolidating = signal(false);
   readonly consolidationMessage = signal('');
   readonly consolidationError = signal('');
+  readonly manualMovementSearchQuery = signal('');
+  readonly manualSelectedNames = signal<string[]>([]);
+  readonly manualCanonicalName = signal('');
 
   readonly hasWeeks = computed(() => this.filteredWeekGroups().length > 0);
 
@@ -113,6 +116,17 @@ export class WorkoutHistoryComponent {
   );
 
   readonly hasMovementNameClusters = computed(() => this.movementNameClusters().length > 0);
+
+  readonly filteredManualMovementNames = computed(() => {
+    const query = this.manualMovementSearchQuery().trim().toLowerCase();
+    if (!query) return this.allMovementNames();
+    return this.allMovementNames().filter((name) => name.toLowerCase().includes(query));
+  });
+
+  readonly canMergeManualSelection = computed(() => {
+    const selectedNames = this.manualSelectedNames();
+    return selectedNames.length >= 2 && selectedNames.includes(this.manualCanonicalName());
+  });
 
   readonly filteredMovementOptions = computed(() => {
     const query = this.movementSearchQuery().trim().toLowerCase();
@@ -207,6 +221,9 @@ export class WorkoutHistoryComponent {
     this.consolidationSelections.set(defaults);
     this.consolidationMessage.set('');
     this.consolidationError.set('');
+    this.manualMovementSearchQuery.set('');
+    this.manualSelectedNames.set([]);
+    this.manualCanonicalName.set('');
     this.showConsolidationModal.set(true);
   }
 
@@ -229,24 +246,60 @@ export class WorkoutHistoryComponent {
     }));
   }
 
-  async mergeCluster(cluster: MovementNameCluster): Promise<void> {
-    const user = this.authService.user();
-    if (!user) return;
+  isManualMovementSelected(name: string): boolean {
+    return this.manualSelectedNames().includes(name);
+  }
 
+  toggleManualMovement(name: string, selected: boolean): void {
+    const current = this.manualSelectedNames();
+    const next = selected
+      ? Array.from(new Set([...current, name]))
+      : current.filter((selectedName) => selectedName !== name);
+
+    this.manualSelectedNames.set(next);
+    if (!next.includes(this.manualCanonicalName())) {
+      this.manualCanonicalName.set(next[0] ?? '');
+    }
+  }
+
+  async mergeManualSelection(): Promise<void> {
+    const selectedNames = this.manualSelectedNames();
+    const canonicalName = this.manualCanonicalName().trim();
+    if (selectedNames.length < 2 || !selectedNames.includes(canonicalName)) {
+      this.consolidationError.set('Select at least two movement names and choose which name to keep.');
+      return;
+    }
+
+    const merged = await this.mergeMovementNames(selectedNames, canonicalName);
+    if (merged) {
+      this.manualMovementSearchQuery.set('');
+      this.manualSelectedNames.set([]);
+      this.manualCanonicalName.set('');
+    }
+  }
+
+  async mergeCluster(cluster: MovementNameCluster): Promise<void> {
     const canonicalName = this.canonicalNameFor(cluster).trim();
     if (!canonicalName) {
       this.consolidationError.set('Please choose a name to merge into.');
       return;
     }
 
+    await this.mergeMovementNames(cluster.names, canonicalName);
+  }
+
+  private async mergeMovementNames(names: readonly string[], canonicalName: string): Promise<boolean> {
+    const user = this.authService.user();
+    if (!user) return false;
+
     const confirmed = typeof window === 'undefined'
       ? true
       : window.confirm(
-          `Merge ${cluster.names.length} movement name(s) (${cluster.names.join(', ')}) into "${canonicalName}"? ` +
+          `Combine ${names.length} movement names (${names.join(', ')}) into "${canonicalName}"? ` +
             'This will rename these movements across all of your past workouts and cannot be undone.'
         );
     if (!confirmed) {
-      return;
+      return false;
     }
 
     this.isConsolidating.set(true);
@@ -256,18 +309,25 @@ export class WorkoutHistoryComponent {
     try {
       const updatedCount = await this.workoutStorage.renameMovementAcrossSessions(
         user.uid,
-        cluster.names,
+        names,
         canonicalName
       );
       this.consolidationMessage.set(
-        `Merged into "${canonicalName}" — updated ${updatedCount} workout${updatedCount === 1 ? '' : 's'}.`
+        updatedCount > 0
+          ? `Combined into "${canonicalName}" — updated ${updatedCount} workout${updatedCount === 1 ? '' : 's'}.`
+          : `Everything selected already uses "${canonicalName}"; no workouts needed updating.`
       );
       await this.loadHistory(user.uid);
-      if (this.selectedMovementName() && cluster.names.some((name) => name.toLowerCase() === this.selectedMovementName().toLowerCase())) {
+      this.manualMovementSearchQuery.set('');
+      this.manualSelectedNames.set([]);
+      this.manualCanonicalName.set('');
+      if (this.selectedMovementName() && names.some((name) => name.toLowerCase() === this.selectedMovementName().toLowerCase())) {
         this.selectedMovementName.set(canonicalName);
       }
+      return true;
     } catch (error: unknown) {
       this.consolidationError.set(error instanceof Error ? error.message : 'Unable to merge movements.');
+      return false;
     } finally {
       this.isConsolidating.set(false);
     }
@@ -457,4 +517,3 @@ export class WorkoutHistoryComponent {
     return this.trainingDays.find((trainingDay) => this.dayHasSessions(week, trainingDay)) ?? this.trainingDays[0];
   }
 }
-

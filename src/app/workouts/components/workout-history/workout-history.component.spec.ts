@@ -12,6 +12,7 @@ import { WorkoutHistoryComponent } from './workout-history.component';
 describe('WorkoutHistoryComponent', () => {
   let fixture: ComponentFixture<WorkoutHistoryComponent>;
   let component: WorkoutHistoryComponent;
+  let workoutStorage: jasmine.SpyObj<WorkoutStorageService>;
 
   const sessions: WorkoutSession[] = [
     makeSession('1', '2026-07-21', 'upper-a'),
@@ -22,6 +23,13 @@ describe('WorkoutHistoryComponent', () => {
   ];
 
   beforeEach(async () => {
+    workoutStorage = jasmine.createSpyObj<WorkoutStorageService>(
+      'WorkoutStorageService',
+      ['getSessions', 'renameMovementAcrossSessions']
+    );
+    workoutStorage.getSessions.and.resolveTo(sessions);
+    workoutStorage.renameMovementAcrossSessions.and.resolveTo(2);
+
     await TestBed.configureTestingModule({
       imports: [CommonModule, RouterTestingModule, WorkoutHistoryComponent],
       providers: [
@@ -33,9 +41,7 @@ describe('WorkoutHistoryComponent', () => {
         },
         {
           provide: WorkoutStorageService,
-          useValue: {
-            getSessions: jasmine.createSpy('getSessions').and.resolveTo(sessions),
-          },
+          useValue: workoutStorage,
         },
       ],
     }).compileComponents();
@@ -177,6 +183,57 @@ describe('WorkoutHistoryComponent', () => {
     expect(component.selectedMovementHistory().length).toBe(1);
     expect(component.selectedMovementPB()?.maxLoad).toBe(225);
   });
+
+  it('supports manually selecting unrelated movement names to combine', async () => {
+    component.allSessions.set([
+      makeSessionWithMovements(['DB RDL', 'Dumbbell Romanian Deadlift', 'Front Squat']),
+    ]);
+    component.openConsolidationModal();
+
+    component.toggleManualMovement('DB RDL', true);
+    component.toggleManualMovement('Dumbbell Romanian Deadlift', true);
+
+    expect(component.manualSelectedNames()).toEqual(['DB RDL', 'Dumbbell Romanian Deadlift']);
+    expect(component.manualCanonicalName()).toBe('DB RDL');
+    expect(component.canMergeManualSelection()).toBeTrue();
+
+    spyOn(window, 'confirm').and.returnValue(true);
+    await component.mergeManualSelection();
+
+    expect(workoutStorage.renameMovementAcrossSessions).toHaveBeenCalledWith(
+      'user-1',
+      ['DB RDL', 'Dumbbell Romanian Deadlift'],
+      'DB RDL'
+    );
+    expect(component.manualSelectedNames()).toEqual([]);
+  });
+
+  it('keeps the manual movement manager available when there are no automatic suggestions', () => {
+    component.allSessions.set([
+      makeSessionWithMovements(['Back Squat', 'Bench Press']),
+    ]);
+    component.setViewMode('by-movement');
+    fixture.detectChanges();
+
+    const manageButton = fixture.nativeElement.querySelector('.btn-consolidate') as HTMLButtonElement | null;
+    expect(component.hasMovementNameClusters()).toBeFalse();
+    expect(manageButton?.textContent).toContain('Manage movement names');
+  });
+
+  it('clears stale manual selections after an automatic merge', async () => {
+    component.allSessions.set([
+      makeSessionWithMovements(['Bench Press', 'Bench Pres', 'Front Squat']),
+    ]);
+    component.openConsolidationModal();
+    component.toggleManualMovement('Bench Pres', true);
+    component.toggleManualMovement('Front Squat', true);
+
+    spyOn(window, 'confirm').and.returnValue(true);
+    await component.mergeCluster(component.movementNameClusters()[0]);
+
+    expect(component.manualSelectedNames()).toEqual([]);
+    expect(component.manualCanonicalName()).toBe('');
+  });
 });
 
 function makeSession(
@@ -196,5 +253,23 @@ function makeSession(
     blocks: [],
     createdAt: `${date}T00:00:00.000Z`,
     updatedAt: `${date}T00:00:00.000Z`,
+  };
+}
+
+function makeSessionWithMovements(movementNames: string[]): WorkoutSession {
+  return {
+    ...makeSession('manual', '2026-07-22', 'lower-a'),
+    blocks: [
+      {
+        id: 'block',
+        name: 'Main',
+        movements: movementNames.map((movementName, index) => ({
+          id: `movement-${index}`,
+          movementName,
+          setEntries: [],
+          notes: '',
+        })),
+      },
+    ],
   };
 }
