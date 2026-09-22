@@ -89,9 +89,11 @@ describe('WorkoutLogComponent', () => {
     fixture.detectChanges();
 
     const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Last week');
-    expect(text).toContain('Back squat');
+    expect(text).toContain('Back squat history');
     expect(text).toContain('2026-07-17');
+    // The previous session's actual sets/reps/load must be visible, not just its date.
+    expect(text).toContain('5 × 185');
+    expect(text).toContain('Keep braced');
   });
 
   it('returns full movement history for dropdown-selected names', () => {
@@ -356,6 +358,113 @@ describe('WorkoutLogComponent', () => {
 
     component.onCustomWeekNameChange('Deload Week');
     expect(component.customWeekName()).toBe('Deload Week');
+  });
+
+  it('auto-saves to Firestore without waiting for a button press', async () => {
+    const storage = TestBed.inject(WorkoutStorageService) as jasmine.SpyObj<WorkoutStorageService>;
+    (storage.saveSession as jasmine.Spy).and.resolveTo(makeSession({ date: '2026-08-01' }));
+
+    component.workoutDate.set('2026-08-01');
+    component.blocks = [
+      {
+        id: 'block-1',
+        name: 'Main',
+        movements: [
+          {
+            id: 'move-1',
+            movementName: 'Back squat',
+            setEntries: [{ setNumber: 1, reps: 5, load: 200 }],
+            notes: '',
+          },
+        ],
+      },
+    ];
+
+    await component.saveNow();
+
+    expect(storage.saveSession).toHaveBeenCalled();
+    expect(component.saveState()).toBe('saved');
+    expect(component.hasUnsavedChanges()).toBeFalse();
+  });
+
+  it('skips auto-save until at least one movement is named', async () => {
+    const storage = TestBed.inject(WorkoutStorageService) as jasmine.SpyObj<WorkoutStorageService>;
+    (storage.saveSession as jasmine.Spy).calls.reset();
+
+    component.blocks = [{ id: 'block-1', name: 'Main', movements: [] }];
+
+    await component.saveNow();
+
+    expect(storage.saveSession).not.toHaveBeenCalled();
+  });
+
+  it('reports unsaved changes and blocks deactivation when a save fails', async () => {
+    const storage = TestBed.inject(WorkoutStorageService) as jasmine.SpyObj<WorkoutStorageService>;
+    (storage.saveSession as jasmine.Spy).and.rejectWith(new Error('offline'));
+
+    component.workoutDate.set('2026-08-02');
+    component.blocks = [
+      {
+        id: 'block-2',
+        name: 'Main',
+        movements: [
+          {
+            id: 'move-2',
+            movementName: 'Deadlift',
+            setEntries: [{ setNumber: 1, reps: 3, load: 315 }],
+            notes: '',
+          },
+        ],
+      },
+    ];
+
+    await component.saveNow();
+
+    expect(component.saveState()).toBe('error');
+    expect(component.hasUnsavedChanges()).toBeTrue();
+    await expectAsync(component.canDeactivate()).toBeResolvedTo(false);
+  });
+
+  it('exposes week, program block, PB and trend details in movement history', () => {
+    component.workoutDate.set('2026-07-31');
+    component.trainingDay.set('lower-a');
+    component.allSessions.set([
+      { ...makeSession({ id: 'older', date: '2026-07-10' }), weekNumber: 1 },
+      { ...makeSession({ id: 'newer', date: '2026-07-17' }), weekNumber: 2, customWeekName: 'Deload' },
+    ]);
+
+    const history = component.movementHistoryFor('Back squat');
+
+    expect(history.length).toBe(2);
+    expect(history[0].sessionDate).toBe('2026-07-17');
+    expect(history[0].programBlockName).toBe('Program Block 1');
+    expect(component.historyWeekLabel(history[0])).toBe('Deload · Week 2');
+    expect(history[0].bestLoad).toBe(185);
+    expect(history[0].loadDelta).toBe(0);
+    expect(history.some((entry) => entry.isPersonalBest)).toBeTrue();
+  });
+
+  it('splits movement history into inline and collapsed sections', () => {
+    component.workoutDate.set('2026-08-10');
+    component.allSessions.set([
+      makeSession({ id: 's1', date: '2026-07-03' }),
+      makeSession({ id: 's2', date: '2026-07-10' }),
+      makeSession({ id: 's3', date: '2026-07-17' }),
+      makeSession({ id: 's4', date: '2026-07-24' }),
+    ]);
+
+    expect(component.inlineMovementHistoryFor('Back squat').length).toBe(3);
+    expect(component.olderMovementHistoryFor('Back squat').length).toBe(1);
+    expect(component.olderMovementHistoryFor('Back squat')[0].sessionDate).toBe('2026-07-03');
+  });
+
+  it('excludes the workout currently being edited from its own history', () => {
+    component.workoutDate.set('2026-07-17');
+    component.trainingDay.set('lower-a');
+    component.selectedProgramBlockId.set('block-1');
+    component.allSessions.set([makeSession({ id: 'today', date: '2026-07-17' })]);
+
+    expect(component.movementHistoryFor('Back squat').length).toBe(0);
   });
 });
 

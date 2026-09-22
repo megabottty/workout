@@ -6,7 +6,7 @@ import { Router } from '@angular/router';
 import { AuthService } from '../../../auth/services/auth.service';
 import { SocialStorageService } from '../../../social/services/social-storage.service';
 import { ProgramBlockDefinition, TrainingDay, WorkoutSession } from '../../models/workout.models';
-import { WorkoutStorageService } from '../../services/workout-storage.service';
+import { SaveWorkoutInput, WorkoutStorageService } from '../../services/workout-storage.service';
 import { ComponentCanDeactivate } from '../../guards/unsaved-changes.guard';
 import {
   DEFAULT_PROGRAM_BLOCK_ID,
@@ -25,6 +25,7 @@ import {
 } from '../../utils/personal-best.utils';
 import {
   WorkoutDraft,
+  clearLegacyLocalStorageDrafts,
   clearWorkoutDraft,
   loadWorkoutDraft,
   saveWorkoutDraft,
@@ -67,6 +68,9 @@ export type MovementHistoryEntry = {
   sessionDate: string;
   trainingDay: TrainingDay;
   blockName: string;
+  programBlockName: string;
+  weekNumber: number | null;
+  customWeekName: string;
   movementName: string;
   setEntries: Array<{
     setNumber: number;
@@ -74,7 +78,24 @@ export type MovementHistoryEntry = {
     load: number | string | null;
   }>;
   notes: string;
+  /** Heaviest numeric load recorded in this session, used for the trend badge. */
+  bestLoad: number | null;
+  /** Difference between this session's best load and the next-older session's. */
+  loadDelta: number | null;
+  isPersonalBest: boolean;
 };
+
+export type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
+
+type PendingSave = {
+  userId: string;
+  input: SaveWorkoutInput;
+  signature: string;
+};
+
+const DRAFT_DEBOUNCE_MS = 400;
+const FIRESTORE_AUTOSAVE_DEBOUNCE_MS = 1500;
+const INLINE_HISTORY_ENTRY_COUNT = 3;
 
 type ShareRecipientOption = {
   uid: string;
@@ -106,13 +127,19 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
 
   // Draft persistence
   readonly isDraftRestored = signal(false);
-  readonly hasUnsavedChanges = signal(false);
+  readonly saveState = signal<SaveState>('idle');
+  /** True while edits exist that have not been committed to Firestore yet. */
+  readonly hasUnsavedChanges = computed(() => {
+    const state = this.saveState();
+    return state === 'pending' || state === 'saving' || state === 'error';
+  });
 
   // "Did you mean X?" movement-name duplicate prompt
   readonly duplicateNamePrompt = signal<{ movementId: string; typedName: string; suggestedName: string } | null>(null);
 
-  readonly saveMessage = signal('');
   readonly isEditingExisting = signal(false);
+  /** Transient confirmation text for program-block create/edit actions. */
+  readonly saveMessage = signal('');
   readonly errorMessage = signal('');
   readonly isLoading = signal(false);
   readonly copiedFromDate = signal('');
@@ -222,11 +249,24 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
   });
 
   readonly sessionsForMovementHistory = computed(() => {
-    if (this.showAllProgramBlockHistory()) {
-      return this.allSessions();
-    }
+    const pool = this.showAllProgramBlockHistory()
+      ? this.allSessions()
+      : this.sessionsForSelectedProgramBlock();
 
-    return this.sessionsForSelectedProgramBlock();
+    const currentDate = this.workoutDate();
+    const currentDay = this.trainingDay();
+    const currentProgramBlockId = this.selectedProgramBlockId();
+
+    // The workout being edited isn't "history" — excluding it keeps trend
+    // deltas and the entry list meaningful once auto-save starts writing.
+    return pool.filter(
+      (session) =>
+        !(
+          session.date === currentDate &&
+          session.trainingDay === currentDay &&
+          session.programBlockId === currentProgramBlockId
+        )
+    );
   });
 
   readonly recentSessionsForDay = computed(() =>
@@ -277,6 +317,7 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
 
   readonly movementHistoryByName = computed(() => {
     const history = new Map<string, MovementHistoryEntry[]>();
+    const personalBests = this.personalBests();
     const sessions = this.sessionsForMovementHistory()
       .slice()
       .sort((a, b) => b.date.localeCompare(a.date));
@@ -289,22 +330,49 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
             continue;
           }
 
+          const setEntries = movement.setEntries.map((setEntry) => ({
+            setNumber: setEntry.setNumber,
+            reps: setEntry.reps,
+            load: setEntry.load,
+          }));
+
           const existing = history.get(normalized) ?? [];
           existing.push({
             sessionId: session.id,
             sessionDate: session.date,
             trainingDay: session.trainingDay,
             blockName: block.name,
+            programBlockName: session.programBlockName,
+            weekNumber: session.weekNumber ?? null,
+            customWeekName: session.customWeekName ?? '',
             movementName: movement.movementName,
-            setEntries: movement.setEntries.map((setEntry) => ({
-              setNumber: setEntry.setNumber,
-              reps: setEntry.reps,
-              load: setEntry.load,
-            })),
+            setEntries,
             notes: movement.notes,
+            bestLoad: this.bestNumericLoad(setEntries),
+            loadDelta: null,
+            isPersonalBest: false,
           });
           history.set(normalized, existing);
         }
+      }
+    }
+
+    for (const [normalized, entries] of history) {
+      const personalBest = personalBests.get(normalized) ?? null;
+
+      for (let index = 0; index < entries.length; index++) {
+        const entry = entries[index];
+        const older = entries[index + 1];
+
+        if (entry.bestLoad !== null && older?.bestLoad != null) {
+          entry.loadDelta = Number((entry.bestLoad - older.bestLoad).toFixed(2));
+        }
+
+        entry.isPersonalBest =
+          personalBest !== null &&
+          entry.bestLoad !== null &&
+          entry.bestLoad === personalBest.maxLoad &&
+          entry.sessionDate === personalBest.date;
       }
     }
 
@@ -326,6 +394,10 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
   private loadToken = 0;
   private loadedShareRecipientsForUid = '';
   private autoSaveTimeout: ReturnType<typeof setTimeout> | null = null;
+  private firestoreSaveTimeout: ReturnType<typeof setTimeout> | null = null;
+  private pendingSave: PendingSave | null = null;
+  private saveInFlight: Promise<void> | null = null;
+  private lastSavedSignature = '';
 
   constructor(
     private readonly workoutStorage: WorkoutStorageService,
@@ -333,6 +405,8 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
     private readonly router: Router,
     private readonly socialStorage: SocialStorageService,
   ) {
+    clearLegacyLocalStorageDrafts();
+
     effect(() => {
       const user = this.authService.user();
       const date = this.workoutDate();
@@ -348,9 +422,16 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
     }, { allowSignalWrites: true });
   }
 
-  /** Used by unsavedChangesGuard (in-app navigation) and beforeunload (tab close/refresh). */
-  canDeactivate(): boolean {
-    return !this.hasUnsavedChanges();
+  /**
+   * Used by unsavedChangesGuard. Auto-save normally lands before navigation, so
+   * we flush first and only refuse (prompting the user) if that write failed.
+   */
+  async canDeactivate(): Promise<boolean> {
+    if (!this.hasUnsavedChanges()) {
+      return true;
+    }
+
+    return this.flushPendingSave();
   }
 
   @HostListener('window:beforeunload', ['$event'])
@@ -591,19 +672,20 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
     if (user) {
       clearWorkoutDraft(user.uid, this.workoutDate(), this.trainingDay(), this.selectedProgramBlockId());
     }
+    this.cancelPendingSave();
     this.isDraftRestored.set(false);
-    this.hasUnsavedChanges.set(false);
     this.loadSelectionFromCache(this.workoutDate(), this.trainingDay(), true);
   }
 
   private scheduleAutoSaveDraft(): void {
-    this.hasUnsavedChanges.set(true);
     if (this.autoSaveTimeout) {
       clearTimeout(this.autoSaveTimeout);
     }
     this.autoSaveTimeout = setTimeout(() => {
       this.saveDraftToStorage();
-    }, 400);
+    }, DRAFT_DEBOUNCE_MS);
+
+    this.scheduleFirestoreSave();
   }
 
   private saveDraftToStorage(): void {
@@ -638,53 +720,193 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
     saveWorkoutDraft(draft);
   }
 
-  // ─── Save & Share Workout ─────────────────────────────────────────────────
+  // ─── Auto-save & Share Workout ────────────────────────────────────────────
 
-  async saveWorkout(): Promise<void> {
-    const wasEditingExisting = this.isEditingExisting();
-    this.errorMessage.set('');
-
-    try {
-      const userId = this.requireUserId();
-      const saved = await this.workoutStorage.saveSession(userId, {
-        date: this.workoutDate(),
-        trainingDay: this.trainingDay(),
-        programBlockId: this.selectedProgramBlockId(),
-        programBlockName: this.selectedProgramBlockName(),
-        weekNumber: this.isManualWeek() && this.manualWeekNumber() !== null ? this.manualWeekNumber()! : undefined,
-        customWeekName: this.customWeekName().trim() || undefined,
-        notes: this.workoutNotes(),
-        blocks: this.blocks
-          .filter((block) => block.name.trim().length > 0 || block.movements.some((movement) => movement.movementName.trim().length > 0))
-          .map((block) => ({
-            name: block.name.trim() || 'Unnamed block',
-            movements: block.movements
-              .filter((movement) => movement.movementName.trim().length > 0)
-              .map((movement) => ({
-                movementName: movement.movementName.trim(),
-                setEntries: movement.setEntries.map((setEntry) => ({
-                  setNumber: setEntry.setNumber,
-                  reps: setEntry.reps,
-                  load: setEntry.load,
-                })),
-                notes: movement.notes,
+  /** Builds the payload written to Firestore from the current form state. */
+  private buildSaveInput(): SaveWorkoutInput {
+    return {
+      date: this.workoutDate(),
+      trainingDay: this.trainingDay(),
+      programBlockId: this.selectedProgramBlockId(),
+      programBlockName: this.selectedProgramBlockName(),
+      weekNumber: this.isManualWeek() && this.manualWeekNumber() !== null ? this.manualWeekNumber()! : undefined,
+      customWeekName: this.customWeekName().trim() || undefined,
+      notes: this.workoutNotes(),
+      blocks: this.blocks
+        .filter((block) => block.name.trim().length > 0 || block.movements.some((movement) => movement.movementName.trim().length > 0))
+        .map((block) => ({
+          name: block.name.trim() || 'Unnamed block',
+          movements: block.movements
+            .filter((movement) => movement.movementName.trim().length > 0)
+            .map((movement) => ({
+              movementName: movement.movementName.trim(),
+              setEntries: movement.setEntries.map((setEntry) => ({
+                setNumber: setEntry.setNumber,
+                reps: setEntry.reps,
+                load: setEntry.load,
               })),
-          }))
-          .filter((block) => block.movements.length > 0),
-      });
+              notes: movement.notes,
+            })),
+        }))
+        .filter((block) => block.movements.length > 0),
+    };
+  }
 
-      this.lastSavedSession.set(saved);
-      this.isEditingExisting.set(true);
-      this.isDraftRestored.set(false);
-      this.hasUnsavedChanges.set(false);
-      clearWorkoutDraft(userId, this.workoutDate(), this.trainingDay(), this.selectedProgramBlockId());
+  private workoutSignature(input: SaveWorkoutInput): string {
+    return JSON.stringify({
+      date: input.date,
+      trainingDay: input.trainingDay,
+      programBlockId: input.programBlockId,
+      programBlockName: input.programBlockName,
+      weekNumber: input.weekNumber ?? null,
+      customWeekName: input.customWeekName ?? '',
+      notes: input.notes.trim(),
+      blocks: input.blocks,
+    });
+  }
 
-      this.saveMessage.set(`${wasEditingExisting ? 'Updated' : 'Saved'} workout for ${this.workoutDate()}.`);
-      this.shareMessage.set('');
-      await this.reloadSessionsCache(userId);
-    } catch (error: unknown) {
-      this.errorMessage.set(error instanceof Error ? error.message : 'Unable to save workout.');
+  private sessionSignature(session: WorkoutSession): string {
+    return this.workoutSignature({
+      date: session.date,
+      trainingDay: session.trainingDay,
+      programBlockId: session.programBlockId,
+      programBlockName: session.programBlockName,
+      weekNumber: session.weekNumber,
+      customWeekName: session.customWeekName,
+      notes: session.notes,
+      blocks: session.blocks.map((block) => ({
+        name: block.name,
+        movements: block.movements.map((movement) => ({
+          movementName: movement.movementName,
+          setEntries: movement.setEntries.map((setEntry) => ({
+            setNumber: setEntry.setNumber,
+            reps: setEntry.reps,
+            load: setEntry.load,
+          })),
+          notes: movement.notes,
+        })),
+      })),
+    });
+  }
+
+  /**
+   * Snapshots the current form immediately (so a later date/day/program-block
+   * switch still writes to the document the edits belong to) and debounces the
+   * actual Firestore write.
+   */
+  private scheduleFirestoreSave(): void {
+    const user = this.authService.user();
+    if (!user) {
+      return;
     }
+
+    const input = this.buildSaveInput();
+    if (input.blocks.length === 0 && !this.lastSavedSession()) {
+      // Nothing worth persisting yet — don't create an empty document, and drop
+      // any earlier snapshot so a cleared form can't resurrect old movements.
+      this.cancelPendingSave();
+      return;
+    }
+
+    const signature = this.workoutSignature(input);
+    if (signature === this.lastSavedSignature) {
+      this.pendingSave = null;
+      this.clearFirestoreSaveTimeout();
+      if (this.saveState() === 'pending') {
+        this.saveState.set('saved');
+      }
+      return;
+    }
+
+    this.pendingSave = { userId: user.uid, input, signature };
+    this.saveState.set('pending');
+
+    this.clearFirestoreSaveTimeout();
+    this.firestoreSaveTimeout = setTimeout(() => {
+      this.firestoreSaveTimeout = null;
+      void this.flushPendingSave();
+    }, FIRESTORE_AUTOSAVE_DEBOUNCE_MS);
+  }
+
+  /** Writes any snapshotted edits now. Resolves false only when a write failed. */
+  private async flushPendingSave(): Promise<boolean> {
+    this.clearFirestoreSaveTimeout();
+
+    while (this.pendingSave || this.saveInFlight) {
+      const inFlight = this.saveInFlight;
+      if (inFlight) {
+        await inFlight.catch(() => undefined);
+        continue;
+      }
+
+      const pending = this.pendingSave!;
+      this.pendingSave = null;
+      this.saveState.set('saving');
+
+      const attempt = this.persistSnapshot(pending);
+      this.saveInFlight = attempt;
+      try {
+        await attempt;
+      } catch {
+        return false;
+      } finally {
+        if (this.saveInFlight === attempt) {
+          this.saveInFlight = null;
+        }
+      }
+    }
+
+    return this.saveState() !== 'error';
+  }
+
+  private async persistSnapshot(snapshot: PendingSave): Promise<void> {
+    try {
+      const saved = await this.workoutStorage.saveSession(snapshot.userId, snapshot.input);
+
+      const stillViewingSnapshot =
+        snapshot.input.date === this.workoutDate() &&
+        snapshot.input.trainingDay === this.trainingDay() &&
+        snapshot.input.programBlockId === this.selectedProgramBlockId();
+
+      if (stillViewingSnapshot) {
+        this.lastSavedSession.set(saved);
+        this.lastSavedSignature = snapshot.signature;
+        this.isEditingExisting.set(true);
+        this.isDraftRestored.set(false);
+      }
+
+      this.errorMessage.set('');
+      this.saveState.set(this.pendingSave ? 'pending' : 'saved');
+      clearWorkoutDraft(snapshot.userId, snapshot.input.date, snapshot.input.trainingDay, snapshot.input.programBlockId);
+
+      // Refresh history/PB data only — rebuilding `blocks` here would wipe out
+      // whatever the user is typing right now.
+      const sessions = await this.workoutStorage.getSessions(snapshot.userId);
+      this.allSessions.set(sessions);
+    } catch (error: unknown) {
+      this.saveState.set('error');
+      this.errorMessage.set(error instanceof Error ? error.message : 'Unable to save workout.');
+      throw error;
+    }
+  }
+
+  private clearFirestoreSaveTimeout(): void {
+    if (this.firestoreSaveTimeout) {
+      clearTimeout(this.firestoreSaveTimeout);
+      this.firestoreSaveTimeout = null;
+    }
+  }
+
+  private cancelPendingSave(): void {
+    this.clearFirestoreSaveTimeout();
+    this.pendingSave = null;
+    this.saveState.set('idle');
+  }
+
+  /** Immediate save, used by form submit (Enter) and the retry affordance. */
+  async saveNow(): Promise<boolean> {
+    this.scheduleFirestoreSave();
+    return this.flushPendingSave();
   }
 
   trackById(_index: number, item: { id: string }): string {
@@ -773,6 +995,69 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
     return this.movementHistoryByName().get(normalized) ?? [];
   }
 
+  /** Most recent sessions, shown expanded so the last few weeks are always visible. */
+  inlineMovementHistoryFor(movementName: string): MovementHistoryEntry[] {
+    return this.movementHistoryFor(movementName).slice(0, INLINE_HISTORY_ENTRY_COUNT);
+  }
+
+  olderMovementHistoryFor(movementName: string): MovementHistoryEntry[] {
+    return this.movementHistoryFor(movementName).slice(INLINE_HISTORY_ENTRY_COUNT);
+  }
+
+  hasMovementContext(movementName: string): boolean {
+    return this.movementReferenceFor(movementName) !== null || this.movementHistoryFor(movementName).length > 0;
+  }
+
+  historyDayLabel(entry: MovementHistoryEntry): string {
+    return TRAINING_DAY_LABELS[entry.trainingDay];
+  }
+
+  historyWeekLabel(entry: MovementHistoryEntry): string {
+    const custom = entry.customWeekName.trim();
+    if (custom && entry.weekNumber !== null) {
+      return `${custom} · Week ${entry.weekNumber}`;
+    }
+    if (custom) {
+      return custom;
+    }
+    if (entry.weekNumber !== null) {
+      return `Week ${entry.weekNumber}`;
+    }
+    return '';
+  }
+
+  formatLoadDelta(delta: number | null): string {
+    if (delta === null) {
+      return '';
+    }
+    if (delta === 0) {
+      return 'same load';
+    }
+    return delta > 0 ? `+${delta}` : `${delta}`;
+  }
+
+  formatSetEntry(setEntry: { setNumber: number; reps: number | null; load: number | string | null }): string {
+    const reps = setEntry.reps === null ? '—' : `${setEntry.reps}`;
+    const load = formatLoadDisplay(setEntry.load);
+    return load ? `${reps} × ${load}` : reps;
+  }
+
+  private bestNumericLoad(
+    setEntries: Array<{ setNumber: number; reps: number | null; load: number | string | null }>
+  ): number | null {
+    let best: number | null = null;
+    for (const setEntry of setEntries) {
+      const numeric = parseNumericLoad(setEntry.load);
+      if (numeric === null || numeric <= 0) {
+        continue;
+      }
+      if (best === null || numeric > best) {
+        best = numeric;
+      }
+    }
+    return best;
+  }
+
   movementReferenceFor(movementName: string): MovementReference | null {
     const reference = this.previousSessionForDay();
     if (!reference) {
@@ -806,22 +1091,22 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
   }
 
   onWorkoutDateChange(): void {
-    this.saveMessage.set('');
+    void this.flushPendingSave();
     this.copiedFromDate.set('');
     this.copyWeekMessage.set('');
     this.errorMessage.set('');
   }
 
   onTrainingDayChange(): void {
-    this.saveMessage.set('');
+    void this.flushPendingSave();
     this.copiedFromDate.set('');
     this.copyWeekMessage.set('');
     this.errorMessage.set('');
   }
 
   onProgramBlockChange(programBlockId: string): void {
+    void this.flushPendingSave();
     this.selectedProgramBlockId.set(programBlockId);
-    this.saveMessage.set('');
     this.copiedFromDate.set('');
     this.copyWeekMessage.set('');
     this.errorMessage.set('');
@@ -1053,8 +1338,18 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
       this.allSessions.set(sessions);
       this.programBlockDefinitions.set(definitions);
       await this.ensureShareRecipientsLoaded(userId);
-      this.ensureSelectedProgramBlock(sessions, definitions, date, day);
-      this.loadSelectionFromCache(date, day);
+      if (loadToken !== this.loadToken) {
+        return;
+      }
+
+      // An auto-save may have landed (and refreshed allSessions) while we were
+      // awaiting above; rebuilding the form from the stale `sessions` snapshot
+      // would discard what the user just typed.
+      const latestSessions = this.allSessions();
+      this.ensureSelectedProgramBlock(latestSessions, definitions, date, day);
+      if (!this.pendingSave && !this.saveInFlight) {
+        this.loadSelectionFromCache(date, day);
+      }
     } finally {
       if (loadToken === this.loadToken) {
         this.isLoading.set(false);
@@ -1063,6 +1358,8 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
   }
 
   private resetState(): void {
+    this.cancelPendingSave();
+    this.lastSavedSignature = '';
     this.isEditingExisting.set(false);
     this.saveMessage.set('');
     this.errorMessage.set('');
@@ -1170,7 +1467,7 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
       session.programBlockId === this.selectedProgramBlockId()
     ) ?? null;
 
-    // Check for unsaved draft in localStorage
+    // A sessionStorage draft holds edits that may not have reached Firestore yet.
     if (!forceIgnoreDraft && user) {
       const draft = loadWorkoutDraft(user.uid, date, day, this.selectedProgramBlockId());
       if (draft && draft.blocks && draft.blocks.length > 0) {
@@ -1191,18 +1488,28 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
             keyboardMode: typeof m.setEntries[0]?.load === 'string' && Number.isNaN(Number(m.setEntries[0]?.load)) ? 'text' : 'numeric',
           })),
         }));
-        this.isDraftRestored.set(true);
-        this.hasUnsavedChanges.set(true);
+
+        this.lastSavedSignature = existing ? this.sessionSignature(existing) : '';
+        const draftDiffersFromSaved = this.workoutSignature(this.buildSaveInput()) !== this.lastSavedSignature;
+
+        // With auto-save the draft usually matches Firestore exactly; only call
+        // it out (and push it up) when it genuinely holds newer edits.
+        this.isDraftRestored.set(draftDiffersFromSaved);
+        this.saveState.set('idle');
+        if (draftDiffersFromSaved) {
+          this.scheduleFirestoreSave();
+        }
         return;
       }
     }
 
     this.isDraftRestored.set(false);
-    this.hasUnsavedChanges.set(false);
+    this.cancelPendingSave();
 
     if (!existing) {
       this.isEditingExisting.set(false);
       this.lastSavedSession.set(null);
+      this.lastSavedSignature = '';
       this.workoutNotes.set('');
       this.manualWeekNumber.set(null);
       this.customWeekName.set('');
@@ -1215,6 +1522,7 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
 
     this.isEditingExisting.set(true);
     this.lastSavedSession.set(existing);
+    this.lastSavedSignature = this.sessionSignature(existing);
     this.workoutNotes.set(existing.notes);
     this.isManualWeek.set(existing.weekNumber !== undefined || !!existing.customWeekName);
     this.manualWeekNumber.set(existing.weekNumber ?? null);

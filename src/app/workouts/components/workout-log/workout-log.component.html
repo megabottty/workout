@@ -1,21 +1,16 @@
 <section class="log-workout">
   <h1>Log Workout</h1>
-  <p class="subtitle">Log your daily workout, then come back and update that day any time.</p>
+  <p class="subtitle">Log your daily workout — changes save automatically as you type.</p>
 
   <div class="draft-alert" *ngIf="isDraftRestored()">
     <span class="draft-alert-text">
-      ⚡ We restored changes you made earlier that were <strong>never saved</strong> to your account (they were only
-      kept locally in this browser). Review them below, then tap <strong>Save workout</strong> to keep them, or
-      discard to start fresh from your last saved version.
+      ⚡ We restored newer changes from this browser tab that hadn't reached your account yet. They're being saved
+      now — or discard to go back to your last saved version.
     </span>
-    <button type="button" class="btn-discard" (click)="discardDraft()">Discard draft</button>
+    <button type="button" class="btn-discard" (click)="discardDraft()">Discard changes</button>
   </div>
 
-  <div class="unsaved-changes-banner" *ngIf="hasUnsavedChanges() && !isDraftRestored()">
-    <span>✏️ You have unsaved changes. They're kept locally in this browser until you tap Save/Update workout.</span>
-  </div>
-
-  <form (ngSubmit)="saveWorkout()" #workoutForm="ngForm">
+  <form (ngSubmit)="saveNow()" #workoutForm="ngForm">
     <div class="session-meta">
       <label>
         Program Block
@@ -37,7 +32,7 @@
           type="date"
           name="workoutDate"
           [ngModel]="workoutDate()"
-          (ngModelChange)="workoutDate.set($event); onWorkoutDateChange(); onFieldChange()"
+          (ngModelChange)="workoutDate.set($event); onWorkoutDateChange()"
           required
         />
       </label>
@@ -47,7 +42,7 @@
         <select
           name="trainingDay"
           [ngModel]="trainingDay()"
-          (ngModelChange)="trainingDay.set($event); onTrainingDayChange(); onFieldChange()"
+          (ngModelChange)="trainingDay.set($event); onTrainingDayChange()"
           required
         >
           <option *ngFor="let option of trainingDayOptions" [value]="option.value">
@@ -297,34 +292,61 @@
         </div>
 
         <ng-container *ngIf="movementHistoryFor(movement.movementName) as history">
-          <aside class="movement-reference" *ngIf="history.length > 0">
-            <h4>Movement history</h4>
+          <aside class="movement-reference" *ngIf="hasMovementContext(movement.movementName)">
+            <h4>{{ movement.movementName.trim() || 'Movement' }} history</h4>
 
             <div class="movement-reference__last-week" *ngIf="movementReferenceFor(movement.movementName) as reference">
-              <p class="history-label">Last week benchmark</p>
-              <p>{{ reference.movementName }} • {{ reference.blockName }} • {{ reference.sourceDate }}</p>
-            </div>
-
-            <details class="movement-history-details">
-              <summary>Full history ({{ history.length }})</summary>
-              <ul class="movement-history-list">
-                <li *ngFor="let entry of history; trackBy: trackBySessionId">
-                  <p class="history-row-title">
-                    {{ entry.sessionDate }} • {{ trainingDayLabels[entry.trainingDay] }} • {{ entry.blockName }}
-                  </p>
-                  <ul>
-                    <li *ngFor="let setEntry of entry.setEntries; trackBy: trackBySetNumber">
-                      Set {{ setEntry.setNumber }}:
-                      <span *ngIf="setEntry.reps !== null">{{ setEntry.reps }} reps</span>
-                      <span *ngIf="setEntry.reps !== null && setEntry.load !== null">, </span>
-                      <span *ngIf="setEntry.load !== null">&#64; {{ setEntry.load }} load</span>
-                      <span *ngIf="setEntry.reps === null && setEntry.load === null">Not logged</span>
-                    </li>
-                  </ul>
-                  <p *ngIf="entry.notes">{{ entry.notes }}</p>
+              <p class="history-label">Last {{ trainingDayLabels[trainingDay()] }} · {{ reference.sourceDate }}</p>
+              <p class="history-row-title">{{ reference.movementName }} • {{ reference.blockName }}</p>
+              <ul class="history-set-list">
+                <li *ngFor="let setEntry of reference.setEntries; trackBy: trackBySetNumber">
+                  <span class="set-label">Set {{ setEntry.setNumber }}</span>
+                  <span class="set-value">{{ formatSetEntry(setEntry) }}</span>
                 </li>
               </ul>
-            </details>
+              <p class="history-notes" *ngIf="reference.notes">📝 {{ reference.notes }}</p>
+            </div>
+
+            <ng-template #historyEntry let-entry>
+              <p class="history-row-title">
+                {{ entry.sessionDate }} • {{ historyDayLabel(entry) }} • {{ entry.blockName }}
+              </p>
+              <p class="history-badges">
+                <span class="history-badge" *ngIf="historyWeekLabel(entry)">{{ historyWeekLabel(entry) }}</span>
+                <span class="history-badge">{{ entry.programBlockName }}</span>
+                <span class="history-badge is-pb" *ngIf="entry.isPersonalBest">🏆 PB</span>
+                <span
+                  class="history-badge is-trend"
+                  *ngIf="entry.loadDelta !== null"
+                  [class.is-up]="entry.loadDelta > 0"
+                  [class.is-down]="entry.loadDelta < 0"
+                >{{ formatLoadDelta(entry.loadDelta) }}</span>
+              </p>
+              <ul class="history-set-list">
+                <li *ngFor="let setEntry of entry.setEntries; trackBy: trackBySetNumber">
+                  <span class="set-label">Set {{ setEntry.setNumber }}</span>
+                  <span class="set-value">{{ formatSetEntry(setEntry) }}</span>
+                </li>
+              </ul>
+              <p class="history-notes" *ngIf="entry.notes">📝 {{ entry.notes }}</p>
+            </ng-template>
+
+            <ul class="movement-history-list" *ngIf="history.length > 0">
+              <li *ngFor="let entry of inlineMovementHistoryFor(movement.movementName); trackBy: trackBySessionId">
+                <ng-container *ngTemplateOutlet="historyEntry; context: { $implicit: entry }"></ng-container>
+              </li>
+            </ul>
+
+            <ng-container *ngIf="olderMovementHistoryFor(movement.movementName) as olderHistory">
+              <details class="movement-history-details" *ngIf="olderHistory.length > 0">
+                <summary>Earlier sessions ({{ olderHistory.length }})</summary>
+                <ul class="movement-history-list">
+                  <li *ngFor="let entry of olderHistory; trackBy: trackBySessionId">
+                    <ng-container *ngTemplateOutlet="historyEntry; context: { $implicit: entry }"></ng-container>
+                  </li>
+                </ul>
+              </details>
+            </ng-container>
           </aside>
         </ng-container>
       </article>
@@ -334,9 +356,17 @@
 
     <div class="actions">
       <button type="button" (click)="addBlock()">Add block</button>
-      <button type="submit" [disabled]="isLoading()">
-        {{ isEditingExisting() ? 'Update workout' : 'Save workout' }}
-      </button>
+      <span class="save-status" [attr.data-state]="saveState()">
+        <ng-container [ngSwitch]="saveState()">
+          <span *ngSwitchCase="'pending'">✏️ Saving changes…</span>
+          <span *ngSwitchCase="'saving'">⏳ Saving…</span>
+          <span *ngSwitchCase="'saved'">✓ Saved automatically</span>
+          <span *ngSwitchCase="'error'">
+            ⚠️ Couldn't save.
+            <button type="button" class="btn-retry-save" (click)="saveNow()">Retry</button>
+          </span>
+        </ng-container>
+      </span>
     </div>
   </form>
 
@@ -348,7 +378,7 @@
   <div class="share-panel">
     <h3>Share this workout 💪</h3>
     <p class="share-hint" *ngIf="!lastSavedSession()">
-      Save this workout first, then tap share.
+      Add a movement — the workout saves automatically, then you can share it.
     </p>
     @if (shareRecipients().length === 0) {
       <p class="share-hint">

@@ -45,14 +45,27 @@
   min-height: auto;
 }
 
-.unsaved-changes-banner {
-  padding: 0.55rem 1rem;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  border-radius: 0.65rem;
-  color: #92400e;
+.save-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   font-size: 0.85rem;
   font-weight: 500;
+  color: #64748b;
+}
+
+.save-status[data-state='saved'] {
+  color: #15803d;
+}
+
+.save-status[data-state='error'] {
+  color: #b91c1c;
+}
+
+.btn-retry-save {
+  min-height: 2rem;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
 }
 
 form {
@@ -447,10 +460,76 @@ textarea {
 
 .movement-history-list {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.6rem;
   max-height: 260px;
   overflow: auto;
   overflow-wrap: anywhere;
+}
+
+.history-set-list {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0.25rem 0 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.history-set-list li {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  color: #334155;
+}
+
+.history-set-list .set-label {
+  flex: 0 0 3.25rem;
+  color: #64748b;
+}
+
+.history-set-list .set-value {
+  font-weight: 600;
+}
+
+.history-row-title {
+  font-weight: 600;
+  color: #1e293b !important;
+}
+
+.history-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.25rem !important;
+}
+
+.history-badge {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.history-badge.is-pb {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.history-badge.is-trend.is-up {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.history-badge.is-trend.is-down {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.history-notes {
+  margin-top: 0.3rem !important;
+  font-style: italic;
 }
 
 @media (max-width: 980px) {

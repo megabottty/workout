@@ -25,15 +25,26 @@ export interface WorkoutDraft {
   savedAt: string;
 }
 
+const DRAFT_KEY_PREFIX = 'workout_draft_';
+
 function getDraftKey(userId: string, date: string, day: TrainingDay, programBlockId: string): string {
-  return `workout_draft_${userId}_${date}_${day}_${programBlockId}`;
+  return `${DRAFT_KEY_PREFIX}${userId}_${date}_${day}_${programBlockId}`;
+}
+
+function getDraftStorage(): Storage | null {
+  try {
+    return typeof sessionStorage === 'undefined' ? null : sessionStorage;
+  } catch {
+    return null;
+  }
 }
 
 export function saveWorkoutDraft(draft: WorkoutDraft): void {
   try {
-    if (typeof localStorage === 'undefined') return;
+    const storage = getDraftStorage();
+    if (!storage) return;
     const key = getDraftKey(draft.userId, draft.workoutDate, draft.trainingDay, draft.programBlockId);
-    localStorage.setItem(key, JSON.stringify(draft));
+    storage.setItem(key, JSON.stringify(draft));
   } catch {
     // Ignore storage errors (quota, private mode)
   }
@@ -46,9 +57,9 @@ export function loadWorkoutDraft(
   programBlockId: string
 ): WorkoutDraft | null {
   try {
-    if (typeof localStorage === 'undefined') return null;
-    const key = getDraftKey(userId, date, day, programBlockId);
-    const raw = localStorage.getItem(key);
+    const storage = getDraftStorage();
+    if (!storage) return null;
+    const raw = storage.getItem(getDraftKey(userId, date, day, programBlockId));
     if (!raw) return null;
     return JSON.parse(raw) as WorkoutDraft;
   } catch {
@@ -63,9 +74,31 @@ export function clearWorkoutDraft(
   programBlockId: string
 ): void {
   try {
+    const storage = getDraftStorage();
+    if (!storage) return;
+    storage.removeItem(getDraftKey(userId, date, day, programBlockId));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+/**
+ * Drafts used to live in localStorage, which survived closing the browser and
+ * let long-stale edits resurface. Remove any leftovers from that era.
+ */
+export function clearLegacyLocalStorageDrafts(): void {
+  try {
     if (typeof localStorage === 'undefined') return;
-    const key = getDraftKey(userId, date, day, programBlockId);
-    localStorage.removeItem(key);
+    const staleKeys: string[] = [];
+    for (let index = 0; index < localStorage.length; index++) {
+      const key = localStorage.key(index);
+      if (key?.startsWith(DRAFT_KEY_PREFIX)) {
+        staleKeys.push(key);
+      }
+    }
+    for (const key of staleKeys) {
+      localStorage.removeItem(key);
+    }
   } catch {
     // Ignore storage errors
   }

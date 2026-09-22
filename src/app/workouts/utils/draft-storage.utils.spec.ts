@@ -2,6 +2,7 @@ import {
   saveWorkoutDraft,
   loadWorkoutDraft,
   clearWorkoutDraft,
+  clearLegacyLocalStorageDrafts,
   WorkoutDraft,
 } from './draft-storage.utils';
 
@@ -32,10 +33,12 @@ describe('draft-storage.utils', () => {
   };
 
   beforeEach(() => {
+    sessionStorage.clear();
     localStorage.clear();
   });
 
   afterEach(() => {
+    sessionStorage.clear();
     localStorage.clear();
   });
 
@@ -61,5 +64,22 @@ describe('draft-storage.utils', () => {
 
     clearWorkoutDraft('user123', '2026-07-20', 'lower-a', 'pb-1');
     expect(loadWorkoutDraft('user123', '2026-07-20', 'lower-a', 'pb-1')).toBeNull();
+  });
+
+  it('stores drafts in sessionStorage so they do not survive closing the browser', () => {
+    saveWorkoutDraft(mockDraft);
+
+    expect(sessionStorage.getItem('workout_draft_user123_2026-07-20_lower-a_pb-1')).toBeTruthy();
+    expect(localStorage.getItem('workout_draft_user123_2026-07-20_lower-a_pb-1')).toBeNull();
+  });
+
+  it('removes legacy localStorage drafts without touching unrelated keys', () => {
+    localStorage.setItem('workout_draft_user123_2026-01-01_lower-a_pb-1', '{}');
+    localStorage.setItem('unrelated_key', 'keep-me');
+
+    clearLegacyLocalStorageDrafts();
+
+    expect(localStorage.getItem('workout_draft_user123_2026-01-01_lower-a_pb-1')).toBeNull();
+    expect(localStorage.getItem('unrelated_key')).toBe('keep-me');
   });
 });
