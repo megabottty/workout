@@ -11,21 +11,21 @@
 }
 
 .card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 1.25rem;
   margin-bottom: 1rem;
 }
 
-.setup-nudge p { margin: 0; font-size: 0.9rem; a { color: #2563eb; } }
+.setup-nudge p { margin: 0; font-size: 0.9rem; a { color: var(--accent); } }
 
 .loading, .empty-state {
   text-align: center;
-  color: #64748b;
+  color: var(--text-muted);
   padding: 2rem;
   p { margin: 0.25rem 0; }
-  a { color: #2563eb; }
+  a { color: var(--accent); }
 }
 
 .feed-list {
@@ -49,8 +49,8 @@
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background: #4a90d9;
-    color: #fff;
+    background: var(--accent);
+    color: var(--on-accent);
     font-weight: 700;
     font-size: 0.875rem;
     flex-shrink: 0;
@@ -72,9 +72,9 @@
       margin-top: 0.2rem;
       font-size: 0.72rem;
       font-weight: 600;
-      background: #ecfdf3;
-      color: #166534;
-      border: 1px solid #bbf7d0;
+      background: var(--success-soft);
+      color: var(--success);
+      border: 1px solid var(--success-border);
       border-radius: 999px;
       padding: 0.1rem 0.45rem;
     }
@@ -83,7 +83,7 @@
       flex-wrap: wrap;
       gap: 0.15rem 0.35rem;
       font-size: 0.78rem;
-      color: #64748b;
+      color: var(--text-muted);
       line-height: 1.4;
 
       > span {
@@ -99,7 +99,7 @@
 
   .caption {
     font-size: 0.9rem;
-    color: #374151;
+    color: var(--text-secondary);
     margin: 0 0 0.75rem;
     line-height: 1.5;
     overflow-wrap: anywhere;
@@ -109,7 +109,7 @@
 .toggle-details {
   background: none;
   border: none;
-  color: #2563eb;
+  color: var(--accent);
   font-size: 0.8rem;
   cursor: pointer;
   padding: 0.15rem 0;
@@ -123,7 +123,7 @@
 }
 
 .workout-details {
-  background: #f8fafc;
+  background: var(--surface-2);
   border-radius: 8px;
   padding: 0.75rem;
   margin-bottom: 0.75rem;
@@ -135,7 +135,7 @@
     h4 {
       font-size: 0.85rem;
       font-weight: 700;
-      color: #374151;
+      color: var(--text-secondary);
       margin: 0 0 0.4rem;
       text-transform: uppercase;
       letter-spacing: 0.04em;
@@ -152,7 +152,7 @@
 
     .movement-name {
       font-weight: 600;
-      color: #1e293b;
+      color: var(--text);
       overflow-wrap: anywhere;
     }
 
@@ -164,8 +164,8 @@
     }
 
     .set-chip {
-      background: #e0f2fe;
-      color: #0369a1;
+      background: var(--accent-soft);
+      color: var(--accent-strong);
       border-radius: 4px;
       padding: 0.1rem 0.4rem;
       font-size: 0.75rem;
@@ -186,9 +186,9 @@
   align-items: center;
   gap: 0.25rem;
   padding: 0.3rem 0.6rem;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 999px;
-  background: #f8fafc;
+  background: var(--surface-2);
   cursor: pointer;
   font-size: 1rem;
   line-height: 1;
@@ -196,8 +196,8 @@
   min-height: 2.25rem;
   white-space: normal;
 
-  &:hover { transform: scale(1.15); background: #e0f2fe; border-color: #bae6fd; }
-  &.reacted { background: #dbeafe; border-color: #93c5fd; }
+  &:hover { transform: scale(1.15); background: var(--accent-soft); border-color: var(--accent-soft); }
+  &.reacted { background: var(--accent-soft); border-color: var(--accent-border); }
 
   .reaction-emoji {
     font-size: 1.1rem;
@@ -207,19 +207,19 @@
   .reaction-count {
     font-size: 0.75rem;
     font-weight: 700;
-    color: #374151;
+    color: var(--text-secondary);
   }
 }
 
 .comments-section {
-  border-top: 1px solid #f0f4f8;
+  border-top: 1px solid var(--surface-2);
   padding-top: 0.75rem;
 }
 
 .toggle-comments {
   background: none;
   border: none;
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 0.85rem;
   cursor: pointer;
   padding: 0.15rem 0;
@@ -250,12 +250,12 @@
   }
 
   .comment-text {
-    color: #374151;
+    color: var(--text-secondary);
     overflow-wrap: anywhere;
   }
 }
 
-.no-comments { font-size: 0.8rem; color: #94a3b8; padding: 0.25rem 0; }
+.no-comments { font-size: 0.8rem; color: var(--text-faint); padding: 0.25rem 0; }
 
 .add-comment {
   display: flex;
@@ -265,7 +265,7 @@
   .comment-input {
     flex: 1;
     padding: 0.45rem 0.6rem;
-    border: 1px solid #d0d7de;
+    border: 1px solid var(--border);
     border-radius: 6px;
     font-size: 0.875rem;
     min-width: 0;
@@ -275,26 +275,26 @@
 
 .btn-post {
   padding: 0.45rem 0.9rem;
-  background: #2563eb;
-  color: #fff;
+  background: var(--accent);
+  color: var(--on-accent);
   border: none;
   border-radius: 6px;
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   min-height: 2.5rem;
-  &:hover { background: #1d4ed8; }
+  &:hover { background: var(--accent-strong); }
 }
 
-.error-msg { color: #c0392b; font-size: 0.875rem; margin-bottom: 0.75rem; }
-.success-msg { color: #166534; font-size: 0.875rem; margin-bottom: 0.75rem; }
+.error-msg { color: var(--danger); font-size: 0.875rem; margin-bottom: 0.75rem; }
+.success-msg { color: var(--success); font-size: 0.875rem; margin-bottom: 0.75rem; }
 
 .btn-import {
   width: 100%;
   padding: 0.5rem 0.75rem;
-  background: #ecfeff;
-  color: #155e75;
-  border: 1px solid #bae6fd;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border: 1px solid var(--accent-soft);
   border-radius: 8px;
   font-size: 0.86rem;
   font-weight: 600;
@@ -303,7 +303,7 @@
   margin-bottom: 0.75rem;
 
   &:disabled { opacity: 0.6; cursor: not-allowed; }
-  &:hover:not(:disabled) { background: #cffafe; border-color: #7dd3fc; }
+  &:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent-border); }
 }
 
 @media (max-width: 640px) {
@@ -319,8 +319,8 @@
   .card {
     padding: 0.9rem 1rem;
     border-radius: 14px;
-    border-color: #e5eaf1;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    border-color: var(--border);
+    box-shadow: var(--shadow-sm);
     margin-bottom: 0.875rem;
   }
 

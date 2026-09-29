@@ -1,3 +1,122 @@
+/* ─── Design tokens ───────────────────────────────────────────────────────────
+   Every component stylesheet uses these variables instead of raw colors, so
+   light and dark modes are a single switch. `data-theme` on <html> forces a
+   theme; without it the OS preference wins.
+──────────────────────────────────────────────────────────────────────────── */
+
+@mixin light-tokens {
+  color-scheme: light;
+
+  --bg: #f3f5f9;
+  --bg-gradient-a: rgba(37, 99, 235, 0.07);
+  --bg-gradient-b: rgba(124, 58, 237, 0.06);
+  --surface: #ffffff;
+  --surface-2: #f6f8fb;
+  --surface-3: #eef1f6;
+  --surface-translucent: rgba(255, 255, 255, 0.85);
+  --border: #e4e9f0;
+  --border-strong: #cdd5e1;
+
+  --text: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --text-faint: #94a3b8;
+
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --on-accent: #ffffff;
+  --accent-soft: #eaf1ff;
+  --accent-border: #b9cfff;
+
+  --success: #15803d;
+  --success-soft: #ecfdf3;
+  --success-border: #a7e3bf;
+
+  --warning: #b45309;
+  --warning-soft: #fff7e6;
+  --warning-border: #fbd38d;
+
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --danger-border: #f5b5b5;
+
+  --violet: #6d28d9;
+  --violet-soft: #efeaff;
+
+  --focus-ring: rgba(37, 99, 235, 0.35);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.18);
+  --backdrop: rgba(15, 23, 42, 0.55);
+}
+
+@mixin dark-tokens {
+  color-scheme: dark;
+
+  --bg: #0b1220;
+  --bg-gradient-a: rgba(96, 165, 250, 0.08);
+  --bg-gradient-b: rgba(167, 139, 250, 0.07);
+  --surface: #121b2e;
+  --surface-2: #182339;
+  --surface-3: #1f2c47;
+  --surface-translucent: rgba(18, 27, 46, 0.85);
+  --border: #26344f;
+  --border-strong: #37476a;
+
+  --text: #e8edf6;
+  --text-secondary: #c5cfe0;
+  --text-muted: #94a3b8;
+  --text-faint: #6b7a95;
+
+  --accent: #60a5fa;
+  --accent-strong: #93c5fd;
+  --on-accent: #0b1220;
+  --accent-soft: rgba(96, 165, 250, 0.14);
+  --accent-border: rgba(96, 165, 250, 0.45);
+
+  --success: #34d399;
+  --success-soft: rgba(52, 211, 153, 0.14);
+  --success-border: rgba(52, 211, 153, 0.4);
+
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.14);
+  --warning-border: rgba(251, 191, 36, 0.4);
+
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.14);
+  --danger-border: rgba(248, 113, 113, 0.4);
+
+  --violet: #c4b5fd;
+  --violet-soft: rgba(167, 139, 250, 0.18);
+
+  --focus-ring: rgba(96, 165, 250, 0.45);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.5);
+  --backdrop: rgba(2, 6, 23, 0.7);
+}
+
+:root {
+  @include light-tokens;
+
+  --font: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    @include dark-tokens;
+  }
+}
+
+:root[data-theme='dark'] {
+  @include dark-tokens;
+}
+
+/* ─── Base ──────────────────────────────────────────────────────────────── */
+
 *,
 *::before,
 *::after {
@@ -12,18 +131,137 @@ body {
 }
 
 body {
-  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  color: #111827;
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text);
   background:
-    radial-gradient(circle at 0% 0%, #dbeafe 0%, transparent 34%),
-    radial-gradient(circle at 95% 5%, #ede9fe 0%, transparent 32%),
-    #f8fafc;
+    radial-gradient(circle at 0% 0%, var(--bg-gradient-a) 0%, transparent 38%),
+    radial-gradient(circle at 100% 0%, var(--bg-gradient-b) 0%, transparent 34%),
+    var(--bg);
   padding-bottom: env(safe-area-inset-bottom);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
+
+h1,
+h2,
+h3,
+h4 {
+  color: var(--text);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+p {
+  color: inherit;
+}
+
+a {
+  color: var(--accent);
+}
+
+/* ─── Form controls ─────────────────────────────────────────────────────── */
 
 input,
 select,
 textarea,
 button {
   max-width: 100%;
+  font: inherit;
+}
+
+input:not([type='checkbox']):not([type='radio']),
+select,
+textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.2s ease;
+
+  &::placeholder {
+    color: var(--text-faint);
+  }
+
+  &:hover {
+    border-color: var(--text-faint);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+textarea {
+  resize: vertical;
+  line-height: 1.45;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--accent);
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+button {
+  min-height: 42px;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+
+  &:hover:not(:disabled) {
+    background: var(--surface-2);
+    border-color: var(--text-faint);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+label {
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+/* ─── Shared utilities ──────────────────────────────────────────────────── */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+::selection {
+  background: var(--accent-soft);
 }

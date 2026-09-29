@@ -1,17 +1,17 @@
 .log-workout {
   display: grid;
   gap: 1.25rem;
-  background: #ffffff;
-  border: 1px solid #e7ebf0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 1rem;
   padding: 1.25rem;
-  box-shadow: 0 6px 24px rgba(16, 24, 40, 0.06);
+  box-shadow: var(--shadow-md);
   min-width: 0;
 }
 
 .subtitle {
   margin-top: 0;
-  color: #4a5568;
+  color: var(--text-muted);
 }
 
 .draft-alert {
@@ -20,10 +20,10 @@
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.65rem 1rem;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
   border-radius: 0.65rem;
-  color: #1e40af;
+  color: var(--accent-strong);
   font-size: 0.9rem;
   font-weight: 500;
 }
@@ -35,9 +35,9 @@
 }
 
 .btn-discard {
-  border: 1px solid #93c5fd;
-  background: #fff;
-  color: #1e3a8a;
+  border: 1px solid var(--accent-border);
+  background: var(--surface);
+  color: var(--accent-strong);
   border-radius: 0.45rem;
   padding: 0.25rem 0.6rem;
   font-size: 0.82rem;
@@ -51,15 +51,15 @@
   gap: 0.4rem;
   font-size: 0.85rem;
   font-weight: 500;
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 .save-status[data-state='saved'] {
-  color: #15803d;
+  color: var(--success);
 }
 
 .save-status[data-state='error'] {
-  color: #b91c1c;
+  color: var(--danger);
 }
 
 .btn-retry-save {
@@ -93,15 +93,15 @@ label {
 }
 
 .btn-reorder-toggle {
-  border: 1px solid #c8d0dc;
-  background: #f8fafc;
-  color: #334155;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-secondary);
   font-weight: 600;
 
   &.is-active {
-    background: #1e293b;
-    border-color: #1e293b;
-    color: #fff;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
   }
 }
 
@@ -114,11 +114,11 @@ label {
 
 .program-week-chip {
   margin: 0;
-  border: 1px solid #d0d7e2;
+  border: 1px solid var(--border);
   border-radius: 999px;
   padding: 0.25rem 0.65rem;
-  background: #f8fafc;
-  color: #334155;
+  background: var(--surface-2);
+  color: var(--text-secondary);
   font-weight: 600;
   font-size: 0.88rem;
   display: inline-flex;
@@ -128,8 +128,8 @@ label {
 
 .btn-chip-action {
   border: none;
-  background: #e2e8f0;
-  color: #1e293b;
+  background: var(--surface-3);
+  color: var(--text);
   border-radius: 999px;
   padding: 0.15rem 0.5rem;
   font-size: 0.78rem;
@@ -142,8 +142,8 @@ label {
   gap: 0.75rem;
   grid-template-columns: minmax(120px, 160px) minmax(200px, 1fr);
   padding: 0.75rem;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 0.65rem;
 }
 
@@ -161,19 +161,19 @@ label {
 input,
 select,
 textarea {
-  border: 1px solid #d0d7e2;
+  border: 1px solid var(--border);
   border-radius: 0.5rem;
   padding: 0.5rem 0.65rem;
   font: inherit;
 }
 
 .block {
-  border: 1px solid #dbe3ee;
+  border: 1px solid var(--border);
   border-radius: 0.85rem;
   padding: 1rem;
   display: grid;
   gap: 0.75rem;
-  background: #fbfcff;
+  background: var(--surface);
 }
 
 .block-header {
@@ -187,19 +187,19 @@ textarea {
 }
 
 .movement-row {
-  border: 1px solid #e7ebf0;
+  border: 1px solid var(--border);
   border-radius: 0.75rem;
   padding: 0.75rem;
   display: grid;
   gap: 0.75rem;
   grid-template-columns: minmax(0, 1fr) minmax(240px, 0.7fr);
   align-items: start;
-  background: #fff;
+  background: var(--surface);
   transition: border-color 0.2s, background-color 0.2s;
 
   &.is-drag-target {
-    border-color: #3b82f6;
-    background: #eff6ff;
+    border-color: var(--accent);
+    background: var(--accent-soft);
   }
 }
 
@@ -223,8 +223,8 @@ textarea {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
   border-radius: 0.5rem;
   padding: 0.25rem 0.4rem;
   height: 2.5rem;
@@ -233,15 +233,15 @@ textarea {
 
 .drag-handle {
   cursor: grab;
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 1.1rem;
   user-select: none;
   padding: 0 0.2rem;
 }
 
 .btn-arrow {
-  border: 1px solid #cbd5e1;
-  background: #fff;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
   border-radius: 0.35rem;
   padding: 0.1rem 0.45rem;
   min-height: 1.8rem;
@@ -268,10 +268,10 @@ textarea {
   width: 100%;
   padding: 0.4rem 0.6rem;
   margin-top: -0.35rem;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  background: var(--warning-soft);
+  border: 1px solid var(--warning-border);
   border-radius: 0.5rem;
-  color: #92400e;
+  color: var(--warning);
   font-size: 0.82rem;
 
   button {
@@ -284,24 +284,24 @@ textarea {
 }
 
 .btn-use-suggestion {
-  border: 1px solid #92400e;
-  background: #92400e;
-  color: #fff;
+  border: 1px solid var(--warning);
+  background: var(--warning);
+  color: var(--on-accent);
 }
 
 .btn-keep-typed {
-  border: 1px solid #d0d7dc;
-  background: #fff;
-  color: #475569;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
 }
 
 .pb-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  background: #fef3c7;
-  color: #92400e;
-  border: 1px solid #fde68a;
+  background: var(--warning-soft);
+  color: var(--warning);
+  border: 1px solid var(--warning-border);
   border-radius: 999px;
   padding: 0.3rem 0.65rem;
   font-size: 0.82rem;
@@ -310,13 +310,13 @@ textarea {
 }
 
 .btn-keyboard-toggle {
-  border: 1px solid #cbd5e1;
-  background: #f8fafc;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
   border-radius: 0.5rem;
   padding: 0.35rem 0.65rem;
   font-size: 0.82rem;
   font-weight: 600;
-  color: #334155;
+  color: var(--text-secondary);
   cursor: pointer;
   min-height: 2.5rem;
   white-space: nowrap;
@@ -329,12 +329,12 @@ textarea {
 }
 
 .set-row {
-  border: 1px solid #e6eaf0;
+  border: 1px solid var(--border);
   border-radius: 0.6rem;
   padding: 0.5rem;
   display: grid;
   gap: 0.4rem;
-  background: #f8fafc;
+  background: var(--surface-2);
   min-width: 0;
 }
 
@@ -351,9 +351,9 @@ textarea {
 }
 
 .pr-celebration {
-  background: #dcfce7;
-  color: #166534;
-  border: 1px solid #86efac;
+  background: var(--success-soft);
+  color: var(--success);
+  border: 1px solid var(--success-border);
   border-radius: 999px;
   padding: 0.1rem 0.45rem;
   font-size: 0.75rem;
@@ -390,13 +390,13 @@ textarea {
   align-items: center;
   gap: 0.4rem;
   font-size: 0.82rem;
-  color: #64748b;
+  color: var(--text-muted);
   flex-wrap: wrap;
 }
 
 .btn-mini {
-  border: 1px solid #cbd5e1;
-  background: #fff;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
   border-radius: 0.35rem;
   padding: 0.2rem 0.5rem;
   font-size: 0.78rem;
@@ -411,7 +411,7 @@ textarea {
 .movement-history-details summary {
   cursor: pointer;
   font-weight: 600;
-  color: #334155;
+  color: var(--text-secondary);
   padding: 0.3rem 0;
   min-height: 2.25rem;
   display: flex;
@@ -423,10 +423,10 @@ textarea {
 }
 
 .movement-reference {
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed var(--border-strong);
   border-radius: 0.7rem;
   padding: 0.75rem;
-  background: #f8fafc;
+  background: var(--surface-2);
   display: grid;
   gap: 0.45rem;
 }
@@ -437,12 +437,12 @@ textarea {
 
 .movement-reference p {
   margin: 0;
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 0.92rem;
 }
 
 .movement-reference__last-week {
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
   padding-bottom: 0.45rem;
 }
 
@@ -450,7 +450,7 @@ textarea {
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 .movement-reference ul {
@@ -478,12 +478,12 @@ textarea {
   display: flex;
   gap: 0.5rem;
   font-size: 0.88rem;
-  color: #334155;
+  color: var(--text-secondary);
 }
 
 .history-set-list .set-label {
   flex: 0 0 3.25rem;
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 .history-set-list .set-value {
@@ -492,7 +492,7 @@ textarea {
 
 .history-row-title {
   font-weight: 600;
-  color: #1e293b !important;
+  color: var(--text) !important;
 }
 
 .history-badges {
@@ -506,25 +506,25 @@ textarea {
   display: inline-block;
   padding: 0.1rem 0.45rem;
   border-radius: 999px;
-  background: #e2e8f0;
-  color: #475569;
+  background: var(--surface-3);
+  color: var(--text-secondary);
   font-size: 0.72rem;
   font-weight: 600;
 }
 
 .history-badge.is-pb {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--warning-soft);
+  color: var(--warning);
 }
 
 .history-badge.is-trend.is-up {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--success-soft);
+  color: var(--success);
 }
 
 .history-badge.is-trend.is-down {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .history-notes {
@@ -551,25 +551,25 @@ textarea {
 }
 
 .share-recipient-chip {
-  border: 1px solid #86efac;
-  background: #f0fdf4;
-  color: #166534;
+  border: 1px solid var(--success-border);
+  background: var(--success-soft);
+  color: var(--success);
   border-radius: 999px;
   padding: 0.35rem 0.7rem;
   min-height: 2rem;
   font-size: 0.84rem;
 
   &.is-selected {
-    background: #16a34a;
-    border-color: #15803d;
-    color: #fff;
+    background: var(--success);
+    border-color: var(--success);
+    color: var(--on-accent);
   }
 }
 
 .share-preview {
-  border: 1px dashed #86efac;
+  border: 1px dashed var(--success-border);
   border-radius: 8px;
-  background: #f7fee7;
+  background: var(--success-soft);
   padding: 0.65rem 0.75rem;
 }
 
@@ -577,14 +577,14 @@ textarea {
   margin: 0;
   font-size: 0.8rem;
   font-weight: 700;
-  color: #166534;
+  color: var(--success);
   text-transform: uppercase;
   letter-spacing: 0.02em;
 }
 
 .share-preview-text {
   margin: 0.25rem 0 0;
-  color: #166534;
+  color: var(--success);
   font-size: 0.84rem;
 }
 
@@ -599,8 +599,8 @@ textarea {
 }
 
 button {
-  border: 1px solid #c8d0dc;
-  background: #fff;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
   border-radius: 0.55rem;
   padding: 0.45rem 0.8rem;
   font: inherit;
@@ -609,29 +609,29 @@ button {
 }
 
 .actions button[type="submit"] {
-  background: #1a202c;
-  color: #fff;
-  border-color: #1a202c;
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
 }
 
 .save-message {
-  color: #1f7a37;
+  color: var(--success);
   font-weight: 600;
 }
 
 .copy-message {
-  color: #1f7a37;
+  color: var(--success);
   margin: 0;
   font-weight: 500;
 }
 
 .error-message {
-  color: #b42318;
+  color: var(--danger);
   font-weight: 600;
 }
 
 .recent-history {
-  border-top: 1px solid #e7ebf0;
+  border-top: 1px solid var(--border);
   padding-top: 1rem;
   display: grid;
   gap: 0.75rem;
@@ -643,9 +643,9 @@ button {
 }
 
 .recent-session {
-  border: 1px solid #e7ebf0;
+  border: 1px solid var(--border);
   border-radius: 0.65rem;
-  background: #fff;
+  background: var(--surface);
   padding: 0.75rem;
 }
 
@@ -656,7 +656,7 @@ button {
 
 .recent-session p {
   margin: 0 0 0.4rem;
-  color: #4a5568;
+  color: var(--text-muted);
 }
 
 .recent-session ul {
@@ -667,7 +667,7 @@ button {
 .program-block-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.5);
+  background: var(--backdrop);
   display: grid;
   place-items: center;
   padding: 1rem;
@@ -679,9 +679,9 @@ button {
   max-height: calc(100vh - 2rem);
   overflow: auto;
   border-radius: 0.85rem;
-  background: #fff;
-  border: 1px solid #dbe3ee;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.28);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
   padding: 1rem;
   display: grid;
   gap: 0.85rem;
@@ -693,7 +693,7 @@ button {
 
 .program-block-modal header p {
   margin: 0.3rem 0 0;
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 .template-grid {
@@ -887,8 +887,8 @@ button {
 }
 
 .share-panel {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
+  background: var(--success-soft);
+  border: 1px solid var(--success-border);
   border-radius: 10px;
   padding: 1rem 1.25rem;
   display: grid;
@@ -898,18 +898,18 @@ button {
     margin: 0;
     font-size: 1rem;
     font-weight: 700;
-    color: #166534;
+    color: var(--success);
   }
 
   .share-hint {
     margin: 0;
-    color: #166534;
+    color: var(--success);
     font-size: 0.85rem;
   }
 
   textarea {
     width: 100%;
-    border: 1px solid #d0d7de;
+    border: 1px solid var(--border);
     border-radius: 6px;
     padding: 0.5rem 0.75rem;
     font-size: 0.9rem;
@@ -920,8 +920,8 @@ button {
 
 .btn-share {
   padding: 0.55rem 1.25rem;
-  background: #059669;
-  color: #fff;
+  background: var(--success);
+  color: var(--on-accent);
   border: none;
   border-radius: 7px;
   font-size: 0.95rem;
@@ -930,11 +930,11 @@ button {
   align-self: flex-start;
 
   &:disabled { opacity: 0.6; cursor: not-allowed; }
-  &:hover:not(:disabled) { background: #047857; }
+  &:hover:not(:disabled) { background: var(--success); }
 }
 
 .share-message {
-  color: #166534;
+  color: var(--success);
   font-size: 0.875rem;
   margin: 0;
 }
@@ -988,21 +988,21 @@ button {
   justify-content: space-between;
   gap: 0.75rem;
   flex-wrap: wrap;
-  border: 1px solid #cbd5e1;
-  border-left: 4px solid #3b82f6;
+  border: 1px solid var(--border-strong);
+  border-left: 4px solid var(--accent);
   border-radius: 0.65rem;
-  background: #eff6ff;
+  background: var(--accent-soft);
   padding: 0.6rem 0.85rem;
   margin-bottom: 1rem;
 
   &[data-kind='editing'] {
-    border-left-color: #f59e0b;
-    background: #fffbeb;
+    border-left-color: var(--warning-border);
+    background: var(--warning-soft);
   }
 
   &[data-kind='new'] {
-    border-left-color: #10b981;
-    background: #ecfdf5;
+    border-left-color: var(--success);
+    background: var(--success-soft);
   }
 }
 
@@ -1020,13 +1020,13 @@ button {
 
 .workout-status__label {
   font-weight: 700;
-  color: #1e293b;
+  color: var(--text);
   overflow-wrap: anywhere;
 }
 
 .btn-back-to-today {
-  border: 1px solid #cbd5e1;
-  background: #fff;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
   border-radius: 999px;
   padding: 0.25rem 0.7rem;
   font-size: 0.85rem;
@@ -1037,11 +1037,11 @@ button {
 
 .workout-status .save-status {
   font-size: 0.85rem;
-  color: #475569;
+  color: var(--text-secondary);
   white-space: nowrap;
 
   &[data-state='loading'] {
-    color: #b45309;
+    color: var(--warning);
   }
 }
 
@@ -1054,8 +1054,8 @@ form.is-loading {
 /* ─── Page-level history toggle ───────────────────────────────────────────── */
 
 .btn-history-toggle.is-active {
-  background: #e2e8f0;
-  border-color: #94a3b8;
+  background: var(--surface-3);
+  border-color: var(--text-faint);
 }
 
 /* ─── Collapsible per-movement history ────────────────────────────────────── */
@@ -1063,7 +1063,7 @@ form.is-loading {
 .movement-reference.is-collapsed {
   padding: 0;
   border-style: solid;
-  background: #fff;
+  background: var(--surface);
 }
 
 .history-summary {
@@ -1081,7 +1081,7 @@ form.is-loading {
   min-height: 2.75rem;
 
   &:hover {
-    background: #f1f5f9;
+    background: var(--surface-2);
   }
 }
 
@@ -1095,7 +1095,7 @@ form.is-loading {
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #64748b;
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -1104,12 +1104,12 @@ form.is-loading {
 
 .history-summary__sets {
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text);
   overflow-wrap: anywhere;
 }
 
 .history-summary__chevron {
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 1rem;
   flex-shrink: 0;
 }
@@ -1118,13 +1118,13 @@ form.is-loading {
 
 .recent-history-hint {
   margin: -0.25rem 0 0;
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 0.88rem;
 }
 
 .recent-session.is-open {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px #dbeafe;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
 .recent-session__header {
@@ -1142,8 +1142,8 @@ form.is-loading {
 
 .recent-session__week {
   font-size: 0.78rem;
-  color: #475569;
-  background: #f1f5f9;
+  color: var(--text-secondary);
+  background: var(--surface-2);
   border-radius: 999px;
   padding: 0.15rem 0.55rem;
 }
@@ -1151,15 +1151,15 @@ form.is-loading {
 .recent-session__open-chip {
   font-size: 0.78rem;
   font-weight: 600;
-  color: #1d4ed8;
-  background: #dbeafe;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
   border-radius: 999px;
   padding: 0.2rem 0.6rem;
 }
 
 .btn-edit-session {
-  border: 1px solid #cbd5e1;
-  background: #fff;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
   border-radius: 0.45rem;
   padding: 0.3rem 0.7rem;
   font-size: 0.85rem;
@@ -1168,7 +1168,7 @@ form.is-loading {
   cursor: pointer;
 
   &:hover {
-    background: #f1f5f9;
+    background: var(--surface-2);
   }
 }
 
@@ -1199,39 +1199,39 @@ form.is-loading {
   min-height: auto;
   font-size: 0.8rem;
   font-weight: 500;
-  color: #2563eb;
+  color: var(--accent);
   text-decoration: underline;
   cursor: pointer;
 
   &:hover {
-    color: #1d4ed8;
+    color: var(--accent-strong);
   }
 }
 
 /* ─── Delete workout ──────────────────────────────────────────────────────── */
 
 .btn-delete-workout {
-  border: 1px solid #fecaca;
-  background: #fff;
-  color: #b91c1c;
+  border: 1px solid var(--danger-border);
+  background: var(--surface);
+  color: var(--danger);
 
   &:hover:not(:disabled) {
-    background: #fef2f2;
+    background: var(--danger-soft);
   }
 }
 
 /* ─── Move workout ────────────────────────────────────────────────────────── */
 
 .btn-move-workout {
-  border: 1px solid #cbd5e1;
-  background: #fff;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
 }
 
 .move-panel {
-  border: 1px solid #cbd5e1;
-  border-left: 4px solid #3b82f6;
+  border: 1px solid var(--border-strong);
+  border-left: 4px solid var(--accent);
   border-radius: 0.65rem;
-  background: #f8fafc;
+  background: var(--surface-2);
   padding: 0.85rem;
   display: grid;
   gap: 0.75rem;
@@ -1245,7 +1245,7 @@ form.is-loading {
 
 .move-panel__hint {
   margin: 0;
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 0.9rem;
 }
 
@@ -1263,7 +1263,124 @@ form.is-loading {
 }
 
 .btn-move-confirm {
-  background: #2563eb;
-  color: #fff;
-  border: 1px solid #1d4ed8;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid var(--accent-strong);
+}
+
+/* ─── Visual polish (overrides above rules; keep last) ────────────────────── */
+
+.log-workout {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 1.35rem;
+
+  > h1 {
+    margin: 0;
+    font-size: 1.45rem;
+  }
+
+  > .subtitle {
+    margin: -0.9rem 0 0;
+    font-size: 0.92rem;
+  }
+}
+
+.session-meta {
+  padding: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.block {
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  box-shadow: none;
+}
+
+.block-header {
+  align-items: end;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px dashed var(--border-strong);
+}
+
+.movement-row {
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.2s ease;
+
+  &:hover {
+    border-color: var(--border-strong);
+  }
+
+  &:focus-within {
+    border-color: var(--accent-border);
+  }
+}
+
+.movement-input-label input {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.set-row {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.set-row h4 {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.movement-reference {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+
+  &.is-collapsed {
+    background: var(--surface-2);
+  }
+}
+
+.history-summary:hover {
+  background: var(--surface-3);
+}
+
+.workout-status {
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.share-panel {
+  border-radius: var(--radius-md);
+}
+
+.recent-session {
+  border-radius: var(--radius-md);
+  transition: border-color 0.15s ease;
+
+  &:hover {
+    border-color: var(--border-strong);
+  }
+}
+
+.btn-move-confirm,
+.btn-share {
+  font-weight: 600;
+  border-color: transparent;
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.06);
+    border-color: transparent;
+  }
+}
+
+.btn-move-confirm:hover:not(:disabled) {
+  background: var(--accent);
 }

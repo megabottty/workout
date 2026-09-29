@@ -1,17 +1,46 @@
 <div class="app-shell">
-  <header>
-    <h1>Workout Progress Tracker</h1>
-    <ng-container *ngIf="user() as user">
-      <nav>
-        <a routerLink="/workouts/log" routerLinkActive="active">Log</a>
-        <a routerLink="/history" routerLinkActive="active">History</a>
-        <a routerLink="/feed" routerLinkActive="active">Feed 🔥</a>
-        <a routerLink="/friends" routerLinkActive="active">Friends</a>
-        <a routerLink="/profile" routerLinkActive="active">Profile</a>
-        <button type="button" (click)="signOut()">Sign out</button>
-      </nav>
-      <p class="signed-in-as">Signed in as {{ user.email }}</p>
-    </ng-container>
+  <header class="app-header">
+    <div class="app-header__row">
+      <a class="brand" routerLink="/workouts/log" aria-label="Workout Tracker home">
+        <span class="brand__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 7v10M18 7v10M3 9v6M21 9v6M6 12h12" />
+          </svg>
+        </span>
+        <span class="brand__text">
+          <span class="brand__name">Workout Tracker</span>
+          <span class="brand__tagline">Log. Progress. Repeat.</span>
+        </span>
+      </a>
+
+      <div class="app-header__tools">
+        <button
+          type="button"
+          class="theme-toggle"
+          (click)="toggleTheme()"
+          [attr.aria-label]="theme() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+          [title]="theme() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+        >
+          <span aria-hidden="true">{{ theme() === 'dark' ? '☀️' : '🌙' }}</span>
+        </button>
+
+        <ng-container *ngIf="user() as user">
+          <span class="user-chip" [title]="user.email ?? ''">
+            <span class="user-chip__avatar" aria-hidden="true">{{ initialsFor(user) }}</span>
+            <span class="user-chip__email">{{ user.email }}</span>
+          </span>
+          <button type="button" class="btn-signout" (click)="signOut()">Sign out</button>
+        </ng-container>
+      </div>
+    </div>
+
+    <nav class="app-nav" *ngIf="user()" aria-label="Main">
+      <a routerLink="/workouts/log" routerLinkActive="active">Log</a>
+      <a routerLink="/history" routerLinkActive="active">History</a>
+      <a routerLink="/feed" routerLinkActive="active">Feed</a>
+      <a routerLink="/friends" routerLinkActive="active">Friends</a>
+      <a routerLink="/profile" routerLinkActive="active">Profile</a>
+    </nav>
   </header>
 
   <main>

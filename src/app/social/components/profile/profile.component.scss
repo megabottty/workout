@@ -35,8 +35,8 @@
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background: #4a90d9;
-    color: #fff;
+    background: var(--accent);
+    color: var(--on-accent);
     font-weight: 700;
     font-size: 1.25rem;
     flex-shrink: 0;
@@ -67,7 +67,7 @@
   input {
     width: 100%;
     padding: 0.6rem 0.75rem;
-    border: 1px solid #d0d7de;
+    border: 1px solid var(--border);
     border-radius: 6px;
     font-size: 1rem;
     box-sizing: border-box;
@@ -89,8 +89,8 @@
   overflow-wrap: anywhere;
 }
 
-.error-msg  { color: #c0392b; }
-.success-msg { color: #27ae60; }
+.error-msg  { color: var(--danger); }
+.success-msg { color: var(--success); }
 
 .form-actions {
   display: flex;
@@ -101,8 +101,8 @@
   align-items: center;
   justify-content: center;
   padding: 0.6rem 1.5rem;
-  background: #2563eb;
-  color: #fff;
+  background: var(--accent);
+  color: var(--on-accent);
   border: none;
   border-radius: 6px;
   font-size: 1rem;
@@ -113,7 +113,7 @@
   text-align: center;
 
   &:disabled { opacity: 0.6; cursor: not-allowed; }
-  &:hover:not(:disabled) { background: #1d4ed8; }
+  &:hover:not(:disabled) { background: var(--accent-strong); }
 }
 
 @media (max-width: 640px) {
