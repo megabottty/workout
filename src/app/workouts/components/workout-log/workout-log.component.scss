@@ -1182,3 +1182,40 @@ form.is-loading {
     white-space: normal;
   }
 }
+
+/* ─── Low-key "Manage" link beside the Program Block dropdown ─────────────── */
+
+.label-with-action {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.btn-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  min-height: auto;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #2563eb;
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:hover {
+    color: #1d4ed8;
+  }
+}
+
+/* ─── Delete workout ──────────────────────────────────────────────────────── */
+
+.btn-delete-workout {
+  border: 1px solid #fecaca;
+  background: #fff;
+  color: #b91c1c;
+
+  &:hover:not(:disabled) {
+    background: #fef2f2;
+  }
+}

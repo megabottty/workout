@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Firestore, collection, doc, getDoc, getDocs, orderBy, query, setDoc } from '@angular/fire/firestore';
+import { Firestore, collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, setDoc } from '@angular/fire/firestore';
 
 import {
   MovementEntry,
@@ -233,6 +233,17 @@ export class WorkoutStorageService {
       id: sessionRef.id,
       ...data,
     });
+  }
+
+  /** Permanently removes one workout session document. */
+  async deleteSession(userId: string, sessionId: string): Promise<void> {
+    const safeUserId = this.assertUserId(userId);
+    const safeSessionId = sessionId.trim();
+    if (!safeSessionId) {
+      throw new Error('Workout id is required.');
+    }
+
+    await deleteDoc(doc(this.firestore, `users/${safeUserId}/workouts/${safeSessionId}`));
   }
 
   async saveProgramBlockDefinition(userId: string, input: SaveProgramBlockDefinitionInput): Promise<ProgramBlockDefinition> {

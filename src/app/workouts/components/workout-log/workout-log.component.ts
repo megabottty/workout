@@ -109,6 +109,14 @@ function writeShowHistoryPreference(value: boolean): void {
   }
 }
 
+/** Today's calendar date where the user is, not in UTC (which flips to tomorrow in the evening). */
+function localIsoDate(): string {
+  const now = new Date();
+  const month = `${now.getMonth() + 1}`.padStart(2, '0');
+  const day = `${now.getDate()}`.padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
 function isTrainingDay(value: string | null): value is TrainingDay {
   return value !== null && (TRAINING_DAY_ORDER as string[]).includes(value);
 }
@@ -126,7 +134,7 @@ type ShareRecipientOption = {
   styleUrl: './workout-log.component.scss',
 })
 export class WorkoutLogComponent implements ComponentCanDeactivate {
-  private readonly todayIso = new Date().toISOString().slice(0, 10);
+  private readonly todayIso = localIsoDate();
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -164,6 +172,7 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
   readonly duplicateNamePrompt = signal<{ movementId: string; typedName: string; suggestedName: string } | null>(null);
 
   readonly isEditingExisting = signal(false);
+  readonly isDeleting = signal(false);
   /** Transient confirmation text for program-block create/edit actions. */
   readonly saveMessage = signal('');
   readonly errorMessage = signal('');
@@ -565,6 +574,56 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
         .catch(() => undefined);
     } catch {
       // URL sync is cosmetic; never let it break the form.
+    }
+  }
+
+  /** Deletes the open workout from Firestore after confirmation and leaves an empty form for that date. */
+  async deleteWorkout(): Promise<void> {
+    const session = this.lastSavedSession();
+    const user = this.authService.user();
+    if (!session || !user || this.isDeleting()) {
+      return;
+    }
+
+    const confirmed = typeof window === 'undefined'
+      ? true
+      : window.confirm(
+          `Delete the ${TRAINING_DAY_LABELS[session.trainingDay]} workout from ${formatFriendlyDate(session.date, true)}? ` +
+            'This cannot be undone.'
+        );
+    if (!confirmed) {
+      return;
+    }
+
+    this.isDeleting.set(true);
+    this.errorMessage.set('');
+    this.saveMessage.set('');
+
+    try {
+      // Drop anything queued so the deleted document can't be re-created by a
+      // trailing auto-save or draft write.
+      if (this.autoSaveTimeout) {
+        clearTimeout(this.autoSaveTimeout);
+        this.autoSaveTimeout = null;
+      }
+      this.cancelPendingSave();
+      if (this.saveInFlight) {
+        await this.saveInFlight.catch(() => undefined);
+      }
+
+      await this.workoutStorage.deleteSession(user.uid, session.id);
+      clearWorkoutDraft(user.uid, session.date, session.trainingDay, session.programBlockId);
+
+      this.allSessions.update((sessions) => sessions.filter((candidate) => candidate.id !== session.id));
+      this.lastSavedSession.set(null);
+      this.lastSavedSignature = '';
+      this.isEditingExisting.set(false);
+      this.loadSelectionFromCache(this.workoutDate(), this.trainingDay(), true);
+      this.saveMessage.set(`Deleted the workout from ${formatFriendlyDate(session.date, true)}.`);
+    } catch (error: unknown) {
+      this.errorMessage.set(error instanceof Error ? error.message : 'Unable to delete workout.');
+    } finally {
+      this.isDeleting.set(false);
     }
   }
 
@@ -1641,7 +1700,12 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
     // A sessionStorage draft holds edits that may not have reached Firestore yet.
     if (!forceIgnoreDraft && user) {
       const draft = loadWorkoutDraft(user.uid, date, day, this.selectedProgramBlockId());
-      if (draft && draft.blocks && draft.blocks.length > 0) {
+      if (draft && existing && this.isDraftOlderThanSaved(draft, existing)) {
+        // Whatever the draft holds, Firestore has been written since — it is
+        // stale (possibly from an older app version) and must not win, let
+        // alone be pushed back up over the real workout.
+        clearWorkoutDraft(user.uid, date, day, this.selectedProgramBlockId());
+      } else if (draft && draft.blocks && draft.blocks.length > 0) {
         this.isEditingExisting.set(!!existing);
         this.lastSavedSession.set(existing);
         this.workoutNotes.set(draft.workoutNotes || '');
@@ -1713,6 +1777,15 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
         keyboardMode: typeof movement.setEntries[0]?.load === 'string' && Number.isNaN(Number(movement.setEntries[0]?.load)) ? 'text' : 'numeric',
       })),
     }));
+  }
+
+  private isDraftOlderThanSaved(draft: WorkoutDraft, existing: WorkoutSession): boolean {
+    const draftTime = Date.parse(draft.savedAt ?? '');
+    const savedTime = Date.parse(existing.updatedAt ?? '');
+    if (Number.isNaN(draftTime) || Number.isNaN(savedTime)) {
+      return false;
+    }
+    return draftTime < savedTime;
   }
 
   private prefillBlocksFromProgramTemplate(day: TrainingDay): DraftBlock[] {

@@ -48,6 +48,7 @@ describe('WorkoutLogComponent', () => {
             getProgramBlockDefinitions: jasmine.createSpy('getProgramBlockDefinitions').and.resolveTo([]),
             getSessionByDateAndDay: jasmine.createSpy('getSessionByDateAndDay').and.resolveTo(null),
             saveSession: jasmine.createSpy('saveSession').and.resolveTo(null),
+            deleteSession: jasmine.createSpy('deleteSession').and.resolveTo(undefined),
             saveProgramBlockDefinition: jasmine.createSpy('saveProgramBlockDefinition').and.callFake(async (_userId: string, input: { id: string; name: string; totalWeeks: number; }) => ({
               id: input.id,
               name: input.name,
@@ -216,8 +217,114 @@ describe('WorkoutLogComponent', () => {
     expect(fixture.nativeElement.textContent as string).toContain('Back to today');
   });
 
+  it('opens last week from the recent list when today has no workout yet', async () => {
+    const storage = TestBed.inject(WorkoutStorageService) as jasmine.SpyObj<WorkoutStorageService>;
+    const today = localIsoDate();
+    const lastWeek = makeSession({ id: 'last-week', date: '2026-07-10', movementName: 'Front squat' });
+    (storage.getSessions as jasmine.Spy).and.resolveTo([lastWeek]);
+    (storage.getProgramBlockDefinitions as jasmine.Spy).and.resolveTo([{
+      id: 'block-1', name: 'Program Block 1', totalWeeks: 8,
+      templatesByDay: { 'lower-a': [{ movementName: 'Front squat' }, { movementName: 'RDL' }], 'upper-a': [], 'lower-b': [], 'upper-b': [] },
+      createdAt: '2026-07-01T00:00:00.000Z', updatedAt: '2026-07-01T00:00:00.000Z',
+    }]);
+    sessionStorage.clear();
+
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(component.workoutDate()).toBe(today);
+    expect(component.isEditingExisting()).toBeFalse();
+    expect(component.blocks[0].movements.map((movement) => movement.movementName)).toEqual(['Front squat', 'RDL']);
+
+    const editButton = fixture.nativeElement.querySelector('.recent-session .btn-edit-session') as HTMLButtonElement;
+    expect(editButton).toBeTruthy();
+    editButton.click();
+    fixture.detectChanges();
+    await settle();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component.workoutDate()).toBe('2026-07-10');
+    expect(component.blocks[0].movements[0].movementName).toBe('Front squat');
+    expect(component.blocks[0].movements[0].setEntries[0].load).toBe(185);
+    expect(storage.saveSession).not.toHaveBeenCalled();
+  });
+
+  it('ignores a stale browser draft that is older than the saved workout', async () => {
+    const storage = TestBed.inject(WorkoutStorageService) as jasmine.SpyObj<WorkoutStorageService>;
+    const saved = {
+      ...makeSession({ id: 'last-week', date: '2026-07-10', movementName: 'Front squat' }),
+      updatedAt: '2026-07-10T18:00:00.000Z',
+    };
+    (storage.getSessions as jasmine.Spy).and.resolveTo([saved]);
+    sessionStorage.clear();
+    // A draft written *before* the workout was last saved (e.g. by an older
+    // app version under the wrong key) must never replace real data.
+    sessionStorage.setItem(
+      'workout_draft_user-1_2026-07-10_lower-a_block-1',
+      JSON.stringify({
+        userId: 'user-1',
+        workoutDate: '2026-07-10',
+        trainingDay: 'lower-a',
+        programBlockId: 'block-1',
+        workoutNotes: '',
+        blocks: [{ id: 'b', name: 'Main', movements: [{ id: 'm', movementName: 'Front squat', setEntries: [{ setNumber: 1, reps: null, load: null }], notes: '' }] }],
+        savedAt: '2026-07-10T17:00:00.000Z',
+      })
+    );
+
+    component.workoutDate.set('2026-07-10');
+    component.trainingDay.set('lower-a');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component.blocks[0].movements[0].setEntries[0].load).toBe(185);
+    expect(component.isDraftRestored()).toBeFalse();
+    expect(storage.saveSession).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem('workout_draft_user-1_2026-07-10_lower-a_block-1')).toBeNull();
+  });
+
+  it('deletes the open workout after confirmation and leaves an empty form', async () => {
+    const storage = TestBed.inject(WorkoutStorageService) as jasmine.SpyObj<WorkoutStorageService>;
+    spyOn(window, 'confirm').and.returnValue(true);
+
+    component.workoutDate.set('2026-07-17');
+    component.trainingDay.set('lower-a');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(component.isEditingExisting()).toBeTrue();
+    expect(fixture.nativeElement.querySelector('.btn-delete-workout')).toBeTruthy();
+
+    await component.deleteWorkout();
+    fixture.detectChanges();
+
+    expect(storage.deleteSession).toHaveBeenCalledWith('user-1', 'prev');
+    expect(component.isEditingExisting()).toBeFalse();
+    expect(component.lastSavedSession()).toBeNull();
+    expect(component.allSessions().length).toBe(0);
+    expect(component.blocks[0].movements[0].setEntries.every((setEntry) => setEntry.load === null)).toBeTrue();
+    expect(fixture.nativeElement.querySelector('.btn-delete-workout')).toBeNull();
+    expect(component.saveMessage()).toContain('Deleted');
+  });
+
+  it('does not delete when the confirmation is dismissed', async () => {
+    const storage = TestBed.inject(WorkoutStorageService) as jasmine.SpyObj<WorkoutStorageService>;
+    spyOn(window, 'confirm').and.returnValue(false);
+
+    component.workoutDate.set('2026-07-17');
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    await component.deleteWorkout();
+
+    expect(storage.deleteSession).not.toHaveBeenCalled();
+    expect(component.isEditingExisting()).toBeTrue();
+  });
+
   it('returns to today from a past workout', async () => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localIsoDate();
     component.workoutDate.set('2026-07-10');
     fixture.detectChanges();
     await fixture.whenStable();
@@ -644,6 +751,13 @@ describe('WorkoutLogComponent', () => {
     expect(component.movementHistoryFor('Back squat').length).toBe(0);
   });
 });
+
+function localIsoDate(): string {
+  const now = new Date();
+  const month = `${now.getMonth() + 1}`.padStart(2, '0');
+  const day = `${now.getDate()}`.padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
 
 function makeSession(overrides?: {
   id?: string;

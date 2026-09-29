@@ -39,7 +39,12 @@
   <form (ngSubmit)="saveNow()" #workoutForm="ngForm" [class.is-loading]="isLoading()" [attr.aria-busy]="isLoading()">
     <div class="session-meta">
       <label>
-        Program Block
+        <span class="label-with-action">
+          Program Block
+          <button type="button" class="btn-link" (click)="openEditProgramBlockModal()" title="Rename this Program Block or change its movement templates">
+            Manage
+          </button>
+        </span>
         <select
           name="programBlock"
           [ngModel]="selectedProgramBlockId()"
@@ -86,7 +91,6 @@
         </button>
       </div>
       <button type="button" (click)="openCreateProgramBlockModal()">+ Start new Program Block</button>
-      <button type="button" (click)="openEditProgramBlockModal()">✏️ Edit Program Block</button>
     </div>
 
     <div class="manual-week-panel" *ngIf="isManualWeek()">
@@ -396,6 +400,15 @@
 
     <div class="actions">
       <button type="button" (click)="addBlock()">Add block</button>
+      <button
+        type="button"
+        class="btn-delete-workout"
+        *ngIf="isEditingExisting()"
+        [disabled]="isDeleting()"
+        (click)="deleteWorkout()"
+      >
+        {{ isDeleting() ? 'Deleting…' : '🗑 Delete workout' }}
+      </button>
       <span class="save-status" [attr.data-state]="saveState()">
         <ng-container [ngSwitch]="saveState()">
           <span *ngSwitchCase="'pending'">✏️ Saving changes…</span>
