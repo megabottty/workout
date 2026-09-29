@@ -16,6 +16,12 @@ import {
 } from '../utils/movement-similarity.utils';
 
 export type SaveWorkoutInput = {
+  /**
+   * Firestore id of the document this workout already lives in. When set the
+   * write goes there (keeping older id schemes stable) instead of to the
+   * canonical `date__day__block` id, so editing never creates a duplicate.
+   */
+  existingSessionId?: string;
   date: string;
   trainingDay: TrainingDay;
   programBlockId: string;
@@ -174,14 +180,18 @@ export class WorkoutStorageService {
     }
 
     const normalizedProgramBlock = normalizeProgramBlock(input.programBlockId, input.programBlockName);
-    const sessionRef = doc(this.firestore, `users/${safeUserId}/workouts/${this.workoutDocId(input.date, input.trainingDay, normalizedProgramBlock.id)}`);
+    const existingId = input.existingSessionId?.trim();
+    const sessionRef = doc(
+      this.firestore,
+      `users/${safeUserId}/workouts/${existingId || this.workoutDocId(input.date, input.trainingDay, normalizedProgramBlock.id)}`
+    );
     const existingSnapshot = await getDoc(sessionRef);
     const now = new Date().toISOString();
     let createdAt = existingSnapshot.exists()
       ? (existingSnapshot.data()['createdAt'] as string | undefined) ?? now
       : now;
 
-    if (!existingSnapshot.exists()) {
+    if (!existingSnapshot.exists() && !existingId) {
       // Backward compatibility for older records saved by date-only ID.
       const legacyRef = doc(this.firestore, `users/${safeUserId}/workouts/${input.date}`);
       const legacySnapshot = await getDoc(legacyRef);
@@ -196,6 +206,74 @@ export class WorkoutStorageService {
       }
     }
 
+    const data = this.buildSessionData(input, normalizedProgramBlock, createdAt, now);
+    await setDoc(sessionRef, data);
+
+    return this.normalizeSession({
+      id: sessionRef.id,
+      ...data,
+    });
+  }
+
+  /**
+   * Re-files a workout under a different date / training day / program block.
+   * Writes the content to the target's canonical id, then removes the old
+   * document. Refuses if a workout already exists at the target.
+   */
+  async moveSession(
+    userId: string,
+    session: WorkoutSession,
+    target: { date: string; trainingDay: TrainingDay; programBlockId: string; programBlockName: string }
+  ): Promise<WorkoutSession> {
+    const safeUserId = this.assertUserId(userId);
+    if (!target.date) {
+      throw new Error('Workout date is required.');
+    }
+
+    const normalizedProgramBlock = normalizeProgramBlock(target.programBlockId, target.programBlockName);
+    const targetId = this.workoutDocId(target.date, target.trainingDay, normalizedProgramBlock.id);
+    if (targetId === session.id) {
+      return session;
+    }
+
+    const targetRef = doc(this.firestore, `users/${safeUserId}/workouts/${targetId}`);
+    const targetSnapshot = await getDoc(targetRef);
+    if (targetSnapshot.exists()) {
+      throw new Error(`A workout is already logged for that training day on ${target.date}. Delete or move it first.`);
+    }
+
+    const now = new Date().toISOString();
+    const data = this.buildSessionData(
+      {
+        date: target.date,
+        trainingDay: target.trainingDay,
+        programBlockId: normalizedProgramBlock.id,
+        programBlockName: normalizedProgramBlock.name,
+        weekNumber: session.weekNumber,
+        customWeekName: session.customWeekName,
+        notes: session.notes,
+        blocks: session.blocks,
+      },
+      normalizedProgramBlock,
+      session.createdAt || now,
+      now
+    );
+
+    await setDoc(targetRef, data);
+    await deleteDoc(doc(this.firestore, `users/${safeUserId}/workouts/${session.id}`));
+
+    return this.normalizeSession({
+      id: targetRef.id,
+      ...data,
+    });
+  }
+
+  private buildSessionData(
+    input: Omit<SaveWorkoutInput, 'existingSessionId'>,
+    normalizedProgramBlock: { id: string; name: string },
+    createdAt: string,
+    updatedAt: string
+  ): Record<string, unknown> {
     const data: Record<string, unknown> = {
       date: input.date,
       trainingDay: input.trainingDay,
@@ -217,7 +295,7 @@ export class WorkoutStorageService {
         })),
       })),
       createdAt,
-      updatedAt: now,
+      updatedAt,
     };
 
     if (typeof input.weekNumber === 'number' && Number.isFinite(input.weekNumber)) {
@@ -227,12 +305,7 @@ export class WorkoutStorageService {
       data['customWeekName'] = input.customWeekName.trim();
     }
 
-    await setDoc(sessionRef, data);
-
-    return this.normalizeSession({
-      id: sessionRef.id,
-      ...data,
-    });
+    return data;
   }
 
   /** Permanently removes one workout session document. */

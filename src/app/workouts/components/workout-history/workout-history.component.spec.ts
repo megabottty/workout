@@ -9,6 +9,7 @@ import { AuthService } from '../../../auth/services/auth.service';
 import { TrainingDay, WorkoutSession } from '../../models/workout.models';
 import { WorkoutStorageService } from '../../services/workout-storage.service';
 import { WorkoutHistoryComponent } from './workout-history.component';
+import { BlockWeek } from '../../utils/block-week.utils';
 
 describe('WorkoutHistoryComponent', () => {
   let fixture: ComponentFixture<WorkoutHistoryComponent>;
@@ -26,10 +27,11 @@ describe('WorkoutHistoryComponent', () => {
   beforeEach(async () => {
     workoutStorage = jasmine.createSpyObj<WorkoutStorageService>(
       'WorkoutStorageService',
-      ['getSessions', 'renameMovementAcrossSessions']
+      ['getSessions', 'renameMovementAcrossSessions', 'deleteSession']
     );
     workoutStorage.getSessions.and.resolveTo(sessions);
     workoutStorage.renameMovementAcrossSessions.and.resolveTo(2);
+    workoutStorage.deleteSession.and.resolveTo(undefined);
 
     await TestBed.configureTestingModule({
       imports: [CommonModule, RouterTestingModule, WorkoutHistoryComponent],
@@ -69,13 +71,7 @@ describe('WorkoutHistoryComponent', () => {
   });
 
   it('paginates sessions within a day card', () => {
-    const week = {
-      weekStartDate: '2026-07-20',
-      weekLabel: 'Week of Jul 20, 2026',
-      sessions,
-    };
-
-    component.weekGroups.set([week]);
+    const week = makeWeek(sessions);
 
     expect(component.totalPagesForDay(week, 'upper-a')).toBe(2);
     expect(component.pagedSessionsForDay(week, 'upper-a').map((session) => session.date)).toEqual([
@@ -92,58 +88,56 @@ describe('WorkoutHistoryComponent', () => {
     ]);
   });
 
-  it('renders the current page of sessions in the day card', () => {
-    const week = {
-      weekStartDate: '2026-07-20',
-      weekLabel: 'Week of Jul 20, 2026',
-      sessions,
-    };
-
-    component.weekGroups.set([week]);
-    component.selectDay(week, 'upper-a');
+  it('groups history into block weeks that ignore the calendar, newest first', () => {
+    component.allSessions.set([
+      // Week 1 runs Friday → following Thursday.
+      makeSession('w1-la', '2026-09-11', 'lower-a'),
+      makeSession('w1-ua', '2026-09-13', 'upper-a'),
+      makeSession('w1-lb', '2026-09-15', 'lower-b'),
+      makeSession('w1-ub', '2026-09-17', 'upper-b'),
+      // Repeating Lower A starts week 2.
+      makeSession('w2-la', '2026-09-19', 'lower-a'),
+    ]);
     fixture.detectChanges();
 
+    const headers = Array.from(fixture.nativeElement.querySelectorAll('.week-header h2') as NodeListOf<HTMLElement>)
+      .map((element) => element.textContent?.replace(/\s+/g, ' ').trim());
+    expect(headers[0]).toContain('Program Block 1 · Week 2');
+    expect(headers[0]).not.toContain('Complete');
+    expect(headers[1]).toContain('Program Block 1 · Week 1');
+    expect(headers[1]).toContain('✓ Complete');
+
     const pageText = fixture.nativeElement.textContent as string;
-    expect(pageText).toContain('Page 1 / 2');
-    expect(pageText).toContain('2026-07-21');
-    expect(pageText).toContain('2026-07-14');
-    expect(pageText).toContain('2026-07-07');
-    expect(pageText).not.toContain('2026-06-30');
+    expect(pageText).toContain('4 of 4 workouts');
+    expect(pageText).toContain('1 of 4 workouts');
+    expect(pageText).not.toContain('Week of');
+    expect(component.blockWeekNumberFor({ id: 'w2-la' })).toBe(2);
   });
 
   it('opens a selected day card when a day tile is clicked', () => {
-    const week = {
-      weekStartDate: '2026-07-20',
-      weekLabel: 'Week of Jul 20, 2026',
-      sessions,
-    };
-
     fixture.detectChanges();
-    component.weekGroups.set([week]);
+    component.allSessions.set(sessions);
     fixture.detectChanges();
 
-    const dayButtons = fixture.nativeElement.querySelectorAll('.day-card--selector') as NodeListOf<HTMLButtonElement>;
+    // Week 3 holds both the 07-14 Upper A and the 07-18 Lower A sessions.
+    const weekSection = fixture.nativeElement.querySelector('#week-block-1__3') as HTMLElement;
+    expect(weekSection).toBeTruthy();
+    const dayButtons = weekSection.querySelectorAll('.day-card--selector') as NodeListOf<HTMLButtonElement>;
     dayButtons[0].click();
     fixture.detectChanges();
 
-    const pageText = fixture.nativeElement.textContent as string;
+    const pageText = weekSection.textContent as string;
     expect(pageText).toContain('Lower Day A');
     expect(pageText).toContain('2026-07-18');
   });
 
   it('filters rendered sessions by selected program block', () => {
-    const week = {
-      weekStartDate: '2026-07-20',
-      weekLabel: 'Week of Jul 20, 2026',
-      sessions: [
-        makeSession('1', '2026-07-21', 'upper-a', 'block-1', 'Program Block 1'),
-        makeSession('2', '2026-07-20', 'upper-a', 'block-2', 'Program Block 2'),
-      ],
-    };
-
-    component.weekGroups.set([week]);
-    component.allSessions.set(week.sessions);
+    component.allSessions.set([
+      makeSession('1', '2026-07-21', 'upper-a', 'block-1', 'Program Block 1'),
+      makeSession('2', '2026-07-20', 'upper-a', 'block-2', 'Program Block 2'),
+    ]);
     component.onProgramBlockFilterChange('block-2');
+    const week = component.filteredWeekGroups()[0];
     component.selectDay(week, 'upper-a');
     fixture.detectChanges();
 
@@ -151,6 +145,46 @@ describe('WorkoutHistoryComponent', () => {
     expect(pageText).toContain('2026-07-20');
     expect(pageText).toContain('Program Block 2');
     expect(pageText).not.toContain('2026-07-21');
+  });
+
+  it('flags workouts that share a date, training day and program block as duplicates', () => {
+    component.allSessions.set([
+      makeSession('2026-07-21', '2026-07-21', 'upper-a'),
+      makeSession('2026-07-21__upper-a__block-1', '2026-07-21', 'upper-a'),
+      makeSession('other', '2026-07-22', 'lower-a'),
+    ]);
+    fixture.detectChanges();
+
+    expect(component.isDuplicate({ id: '2026-07-21' })).toBeTrue();
+    expect(component.isDuplicate({ id: '2026-07-21__upper-a__block-1' })).toBeTrue();
+    expect(component.isDuplicate({ id: 'other' })).toBeFalse();
+    expect((fixture.nativeElement.textContent as string)).toContain('Duplicate');
+  });
+
+  it('deletes a workout from a session card after confirmation and reloads', async () => {
+    spyOn(window, 'confirm').and.returnValue(true);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    workoutStorage.getSessions.calls.reset();
+
+    const deleteButton = fixture.nativeElement.querySelector('.session .btn-delete-session') as HTMLButtonElement;
+    expect(deleteButton).toBeTruthy();
+    deleteButton.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(workoutStorage.deleteSession).toHaveBeenCalledWith('user-1', '1');
+    expect(workoutStorage.getSessions).toHaveBeenCalled();
+    expect(component.actionMessage()).toContain('Deleted');
+  });
+
+  it('does not delete when the confirmation is dismissed', async () => {
+    spyOn(window, 'confirm').and.returnValue(false);
+
+    await component.deleteSession({ id: '1', date: '2026-07-21', trainingDay: 'upper-a' });
+
+    expect(workoutStorage.deleteSession).not.toHaveBeenCalled();
   });
 
   it('supports toggling view mode and searching movement history', () => {
@@ -271,6 +305,20 @@ function makeSession(
     blocks: [],
     createdAt: `${date}T00:00:00.000Z`,
     updatedAt: `${date}T00:00:00.000Z`,
+  };
+}
+
+function makeWeek(weekSessions: WorkoutSession[]): BlockWeek {
+  return {
+    key: 'block-1__1',
+    programBlockId: 'block-1',
+    programBlockName: 'Program Block 1',
+    weekNumber: 1,
+    sessions: weekSessions.slice().sort((a, b) => b.date.localeCompare(a.date)),
+    startDate: weekSessions[weekSessions.length - 1]?.date ?? '',
+    endDate: weekSessions[0]?.date ?? '',
+    completedDays: ['upper-a', 'lower-a'],
+    isComplete: false,
   };
 }
 

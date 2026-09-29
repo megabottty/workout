@@ -402,9 +402,18 @@
       <button type="button" (click)="addBlock()">Add block</button>
       <button
         type="button"
+        class="btn-move-workout"
+        *ngIf="isEditingExisting()"
+        [disabled]="isMoving() || isDeleting()"
+        (click)="isMovePanelOpen() ? closeMovePanel() : openMovePanel()"
+      >
+        📅 Move workout
+      </button>
+      <button
+        type="button"
         class="btn-delete-workout"
         *ngIf="isEditingExisting()"
-        [disabled]="isDeleting()"
+        [disabled]="isDeleting() || isMoving()"
         (click)="deleteWorkout()"
       >
         {{ isDeleting() ? 'Deleting…' : '🗑 Delete workout' }}
@@ -422,6 +431,35 @@
       </span>
     </div>
   </form>
+
+  <section class="move-panel" *ngIf="isMovePanelOpen()" aria-label="Move workout">
+    <h3>Move this workout</h3>
+    <p class="move-panel__hint">Re-file it under a different date, training day or Program Block. Nothing else changes.</p>
+    <div class="move-panel__fields">
+      <label>
+        Date
+        <input type="date" name="moveTargetDate" [ngModel]="moveTargetDate()" (ngModelChange)="moveTargetDate.set($event)" required />
+      </label>
+      <label>
+        Training day
+        <select name="moveTargetDay" [ngModel]="moveTargetDay()" (ngModelChange)="moveTargetDay.set($event)">
+          <option *ngFor="let option of trainingDayOptions" [value]="option.value">{{ option.label }}</option>
+        </select>
+      </label>
+      <label>
+        Program Block
+        <select name="moveTargetProgramBlock" [ngModel]="moveTargetProgramBlockId()" (ngModelChange)="moveTargetProgramBlockId.set($event)">
+          <option *ngFor="let option of programBlockOptions()" [value]="option.id">{{ option.name }}</option>
+        </select>
+      </label>
+    </div>
+    <div class="move-panel__actions">
+      <button type="button" (click)="closeMovePanel()" [disabled]="isMoving()">Cancel</button>
+      <button type="button" class="btn-move-confirm" (click)="moveWorkout()" [disabled]="isMoving()">
+        {{ isMoving() ? 'Moving…' : 'Move workout' }}
+      </button>
+    </div>
+  </section>
 
   <p class="error-message" *ngIf="errorMessage()">{{ errorMessage() }}</p>
   <p class="save-message" *ngIf="saveMessage()">{{ saveMessage() }}</p>
@@ -493,7 +531,7 @@
     >
       <div class="recent-session__header">
         <h3>{{ session.date }}</h3>
-        <span class="recent-session__week" *ngIf="session.weekNumber">Week {{ session.weekNumber }}</span>
+        <span class="recent-session__week" *ngIf="blockWeekNumberFor(session) as week">Week {{ week }}</span>
         <span class="recent-session__open-chip" *ngIf="isSessionOpen(session); else editButton">Currently open</span>
         <ng-template #editButton>
           <button type="button" class="btn-edit-session" (click)="openSessionForEditing(session)">✏️ Edit</button>

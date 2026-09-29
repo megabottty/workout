@@ -14,9 +14,9 @@ import {
 import {
   TRAINING_DAY_LABELS,
   TRAINING_DAY_ORDER,
-  WeekGroup,
-  groupSessionsByWeek,
+  formatFriendlyDate,
 } from '../../utils/workout-history.utils';
+import { BlockWeek, assignBlockWeeks } from '../../utils/block-week.utils';
 import {
   MovementNameCluster,
   clusterSimilarMovementNames,
@@ -45,8 +45,9 @@ export interface MovementHistorySessionEntry {
 })
 export class WorkoutHistoryComponent {
   readonly viewMode = signal<'by-workout' | 'by-movement'>('by-workout');
-  readonly weekGroups = signal<WeekGroup[]>([]);
   readonly allSessions = signal<WorkoutSession[]>([]);
+  readonly deletingSessionId = signal('');
+  readonly actionMessage = signal('');
   readonly errorMessage = signal('');
   readonly isLoading = signal(false);
   readonly dayPageSize = 3;
@@ -70,6 +71,25 @@ export class WorkoutHistoryComponent {
 
   readonly hasWeeks = computed(() => this.filteredWeekGroups().length > 0);
 
+  /** Block weeks (one pass through the four training days), newest first. */
+  readonly blockWeeks = computed(() => assignBlockWeeks(this.allSessions()));
+
+  /** Sessions that share date + training day + program block with another one (e.g. left behind by an older id scheme). */
+  readonly duplicateSessionIds = computed(() => {
+    const seen = new Map<string, string[]>();
+    for (const session of this.allSessions()) {
+      const key = `${session.date}|${session.trainingDay}|${session.programBlockId}`;
+      seen.set(key, [...(seen.get(key) ?? []), session.id]);
+    }
+    const duplicates = new Set<string>();
+    for (const ids of seen.values()) {
+      if (ids.length > 1) {
+        ids.forEach((id) => duplicates.add(id));
+      }
+    }
+    return duplicates;
+  });
+
   readonly programBlockOptions = computed(() => {
     const blocks = new Map<string, string>();
     for (const session of this.allSessions()) {
@@ -85,16 +105,11 @@ export class WorkoutHistoryComponent {
 
   readonly filteredWeekGroups = computed(() => {
     const selectedFilter = this.selectedProgramBlockFilter();
+    const weeks = this.blockWeeks().weeks;
     if (selectedFilter === 'all') {
-      return this.weekGroups();
+      return weeks;
     }
-
-    return this.weekGroups()
-      .map((week) => ({
-        ...week,
-        sessions: week.sessions.filter((session) => session.programBlockId === selectedFilter),
-      }))
-      .filter((week) => week.sessions.length > 0);
+    return weeks.filter((week) => week.programBlockId === selectedFilter);
   });
 
   readonly allMovementNames = computed(() => {
@@ -167,7 +182,7 @@ export class WorkoutHistoryComponent {
               trainingDay: session.trainingDay,
               programBlockId: session.programBlockId,
               programBlockName: session.programBlockName,
-              weekNumber: session.weekNumber,
+              weekNumber: this.blockWeekNumberFor(session) ?? undefined,
               customWeekName: session.customWeekName,
               blockName: block.name,
               setEntries: movement.setEntries,
@@ -195,13 +210,61 @@ export class WorkoutHistoryComponent {
     effect(() => {
       const user = this.authService.user();
       if (!user) {
-        this.weekGroups.set([]);
+        this.allSessions.set([]);
         void this.router.navigate(['/login'], { replaceUrl: true });
         return;
       }
 
       void this.loadHistory(user.uid);
     }, { allowSignalWrites: true });
+  }
+
+  blockWeekNumberFor(session: { id: string }): number | null {
+    return this.blockWeeks().weekBySessionId.get(session.id)?.weekNumber ?? null;
+  }
+
+  isDuplicate(session: { id: string }): boolean {
+    return this.duplicateSessionIds().has(session.id);
+  }
+
+  /** "Fri, Sep 11, 2026 – Thu, Sep 17, 2026 · 3 of 4 workouts" */
+  weekSubtitle(week: BlockWeek): string {
+    const range = week.startDate === week.endDate
+      ? formatFriendlyDate(week.startDate, true)
+      : `${formatFriendlyDate(week.startDate, true)} – ${formatFriendlyDate(week.endDate, true)}`;
+    return `${range} · ${week.completedDays.length} of ${this.trainingDays.length} workouts`;
+  }
+
+  /** Deletes one workout after confirmation and reloads. */
+  async deleteSession(session: { id: string; date: string; trainingDay: TrainingDay }): Promise<void> {
+    const user = this.authService.user();
+    if (!user || this.deletingSessionId()) {
+      return;
+    }
+
+    const confirmed = typeof window === 'undefined'
+      ? true
+      : window.confirm(
+          `Delete the ${TRAINING_DAY_LABELS[session.trainingDay]} workout from ${formatFriendlyDate(session.date, true)}? ` +
+            'This cannot be undone.'
+        );
+    if (!confirmed) {
+      return;
+    }
+
+    this.deletingSessionId.set(session.id);
+    this.errorMessage.set('');
+    this.actionMessage.set('');
+
+    try {
+      await this.workoutStorage.deleteSession(user.uid, session.id);
+      this.actionMessage.set(`Deleted the workout from ${formatFriendlyDate(session.date, true)}.`);
+      await this.loadHistory(user.uid);
+    } catch (error: unknown) {
+      this.errorMessage.set(error instanceof Error ? error.message : 'Unable to delete workout.');
+    } finally {
+      this.deletingSessionId.set('');
+    }
   }
 
   /** Opens the given workout in the Log form via a deep link. */
@@ -352,20 +415,20 @@ export class WorkoutHistoryComponent {
     return this.personalBests().get(normalized) ?? null;
   }
 
-  trackWeek(_index: number, week: WeekGroup): string {
-    return week.weekStartDate;
+  trackWeek(_index: number, week: BlockWeek): string {
+    return week.key;
   }
 
-  weekElementId(week: WeekGroup): string {
-    return `week-${week.weekStartDate}`;
+  weekElementId(week: BlockWeek): string {
+    return `week-${week.key}`;
   }
 
   latestWeekHref(): string {
     return this.filteredWeekGroups()[0] ? `#${this.weekElementId(this.filteredWeekGroups()[0])}` : '#';
   }
 
-  isWeekExpanded(week: WeekGroup): boolean {
-    const key = week.weekStartDate;
+  isWeekExpanded(week: BlockWeek): boolean {
+    const key = week.key;
     if (!this.weekExpandedState.has(key)) {
       this.weekExpandedState.set(key, true);
     }
@@ -373,13 +436,13 @@ export class WorkoutHistoryComponent {
     return this.weekExpandedState.get(key) ?? true;
   }
 
-  toggleWeek(week: WeekGroup): void {
+  toggleWeek(week: BlockWeek): void {
     const next = !this.isWeekExpanded(week);
-    this.weekExpandedState.set(week.weekStartDate, next);
+    this.weekExpandedState.set(week.key, next);
   }
 
-  selectedDayForWeek(week: WeekGroup): TrainingDay {
-    const key = week.weekStartDate;
+  selectedDayForWeek(week: BlockWeek): TrainingDay {
+    const key = week.key;
     if (!this.selectedDayState.has(key)) {
       this.selectedDayState.set(key, this.defaultDayForWeek(week));
     }
@@ -387,15 +450,15 @@ export class WorkoutHistoryComponent {
     return this.selectedDayState.get(key) ?? this.trainingDays[0];
   }
 
-  selectDay(week: WeekGroup, trainingDay: TrainingDay): void {
-    this.selectedDayState.set(week.weekStartDate, trainingDay);
+  selectDay(week: BlockWeek, trainingDay: TrainingDay): void {
+    this.selectedDayState.set(week.key, trainingDay);
   }
 
   onProgramBlockFilterChange(nextFilter: string): void {
     this.selectedProgramBlockFilter.set(nextFilter);
   }
 
-  dayHasSessions(week: WeekGroup, trainingDay: TrainingDay): boolean {
+  dayHasSessions(week: BlockWeek, trainingDay: TrainingDay): boolean {
     return this.sessionsForDay(week, trainingDay).length > 0;
   }
 
@@ -407,49 +470,49 @@ export class WorkoutHistoryComponent {
     return item.setNumber;
   }
 
-  sessionsForDay(week: WeekGroup, trainingDay: TrainingDay): WorkoutSession[] {
+  sessionsForDay(week: BlockWeek, trainingDay: TrainingDay): WorkoutSession[] {
     return week.sessions.filter((session) => session.trainingDay === trainingDay);
   }
 
-  selectedDaySessionsForWeek(week: WeekGroup): WorkoutSession[] {
+  selectedDaySessionsForWeek(week: BlockWeek): WorkoutSession[] {
     return this.sessionsForDay(week, this.selectedDayForWeek(week));
   }
 
-  pagedSessionsForDay(week: WeekGroup, trainingDay: TrainingDay): WorkoutSession[] {
+  pagedSessionsForDay(week: BlockWeek, trainingDay: TrainingDay): WorkoutSession[] {
     const sessions = this.sessionsForDay(week, trainingDay);
     const page = this.currentDayPage(week, trainingDay);
     const start = (page - 1) * this.dayPageSize;
     return sessions.slice(start, start + this.dayPageSize);
   }
 
-  currentDayPage(week: WeekGroup, trainingDay: TrainingDay): number {
+  currentDayPage(week: BlockWeek, trainingDay: TrainingDay): number {
     const key = this.dayPageKey(week, trainingDay);
     const totalPages = this.totalPagesForDay(week, trainingDay);
     const current = this.dayPageState.get(key) ?? 1;
     return Math.min(Math.max(current, 1), totalPages);
   }
 
-  totalPagesForDay(week: WeekGroup, trainingDay: TrainingDay): number {
+  totalPagesForDay(week: BlockWeek, trainingDay: TrainingDay): number {
     return Math.max(1, Math.ceil(this.sessionsForDay(week, trainingDay).length / this.dayPageSize));
   }
 
-  canGoPreviousPage(week: WeekGroup, trainingDay: TrainingDay): boolean {
+  canGoPreviousPage(week: BlockWeek, trainingDay: TrainingDay): boolean {
     return this.currentDayPage(week, trainingDay) > 1;
   }
 
-  canGoNextPage(week: WeekGroup, trainingDay: TrainingDay): boolean {
+  canGoNextPage(week: BlockWeek, trainingDay: TrainingDay): boolean {
     return this.currentDayPage(week, trainingDay) < this.totalPagesForDay(week, trainingDay);
   }
 
-  goToPreviousPage(week: WeekGroup, trainingDay: TrainingDay): void {
+  goToPreviousPage(week: BlockWeek, trainingDay: TrainingDay): void {
     this.setDayPage(week, trainingDay, this.currentDayPage(week, trainingDay) - 1);
   }
 
-  goToNextPage(week: WeekGroup, trainingDay: TrainingDay): void {
+  goToNextPage(week: BlockWeek, trainingDay: TrainingDay): void {
     this.setDayPage(week, trainingDay, this.currentDayPage(week, trainingDay) + 1);
   }
 
-  sessionRangeLabel(week: WeekGroup, trainingDay: TrainingDay): string {
+  sessionRangeLabel(week: BlockWeek, trainingDay: TrainingDay): string {
     const total = this.sessionsForDay(week, trainingDay).length;
     if (total === 0) {
       return '0 sessions';
@@ -480,9 +543,7 @@ export class WorkoutHistoryComponent {
         this.selectedProgramBlockFilter.set('all');
       }
 
-      const nextWeeks = groupSessionsByWeek(sessions, 1);
-      this.weekGroups.set(nextWeeks);
-      this.clampDayPageState(nextWeeks);
+      this.clampDayPageState(this.blockWeeks().weeks);
 
       if (!this.selectedMovementName() && this.allMovementNames().length > 0) {
         this.selectedMovementName.set(this.allMovementNames()[0]);
@@ -493,7 +554,6 @@ export class WorkoutHistoryComponent {
       }
 
       this.errorMessage.set(error instanceof Error ? error.message : 'Unable to load history.');
-      this.weekGroups.set([]);
       this.allSessions.set([]);
     } finally {
       if (loadToken === this.loadToken) {
@@ -502,23 +562,23 @@ export class WorkoutHistoryComponent {
     }
   }
 
-  private dayPageKey(week: WeekGroup, trainingDay: TrainingDay): string {
-    return `${week.weekStartDate}:${trainingDay}`;
+  private dayPageKey(week: BlockWeek, trainingDay: TrainingDay): string {
+    return `${week.key}:${trainingDay}`;
   }
 
-  private setDayPage(week: WeekGroup, trainingDay: TrainingDay, page: number): void {
+  private setDayPage(week: BlockWeek, trainingDay: TrainingDay, page: number): void {
     const totalPages = this.totalPagesForDay(week, trainingDay);
     const nextPage = Math.min(Math.max(page, 1), totalPages);
     this.dayPageState.set(this.dayPageKey(week, trainingDay), nextPage);
   }
 
-  private clampDayPageState(weeks: WeekGroup[]): void {
+  private clampDayPageState(weeks: BlockWeek[]): void {
     for (const week of weeks) {
-      if (!this.weekExpandedState.has(week.weekStartDate)) {
-        this.weekExpandedState.set(week.weekStartDate, true);
+      if (!this.weekExpandedState.has(week.key)) {
+        this.weekExpandedState.set(week.key, true);
       }
-      if (!this.selectedDayState.has(week.weekStartDate)) {
-        this.selectedDayState.set(week.weekStartDate, this.defaultDayForWeek(week));
+      if (!this.selectedDayState.has(week.key)) {
+        this.selectedDayState.set(week.key, this.defaultDayForWeek(week));
       }
       for (const trainingDay of this.trainingDays) {
         this.setDayPage(week, trainingDay, this.currentDayPage(week, trainingDay));
@@ -526,7 +586,7 @@ export class WorkoutHistoryComponent {
     }
   }
 
-  private defaultDayForWeek(week: WeekGroup): TrainingDay {
+  private defaultDayForWeek(week: BlockWeek): TrainingDay {
     return this.trainingDays.find((trainingDay) => this.dayHasSessions(week, trainingDay)) ?? this.trainingDays[0];
   }
 }

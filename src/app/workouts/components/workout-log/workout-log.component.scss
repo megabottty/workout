@@ -1219,3 +1219,51 @@ form.is-loading {
     background: #fef2f2;
   }
 }
+
+/* ─── Move workout ────────────────────────────────────────────────────────── */
+
+.btn-move-workout {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+}
+
+.move-panel {
+  border: 1px solid #cbd5e1;
+  border-left: 4px solid #3b82f6;
+  border-radius: 0.65rem;
+  background: #f8fafc;
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+
+  h3 {
+    margin: 0;
+    font-size: 1rem;
+  }
+}
+
+.move-panel__hint {
+  margin: 0;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.move-panel__fields {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.move-panel__actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.btn-move-confirm {
+  background: #2563eb;
+  color: #fff;
+  border: 1px solid #1d4ed8;
+}

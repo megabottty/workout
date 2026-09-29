@@ -49,6 +49,14 @@ describe('WorkoutLogComponent', () => {
             getSessionByDateAndDay: jasmine.createSpy('getSessionByDateAndDay').and.resolveTo(null),
             saveSession: jasmine.createSpy('saveSession').and.resolveTo(null),
             deleteSession: jasmine.createSpy('deleteSession').and.resolveTo(undefined),
+            moveSession: jasmine.createSpy('moveSession').and.callFake(async (_userId: string, session: WorkoutSession, target: { date: string; trainingDay: 'lower-a' | 'upper-a' | 'lower-b' | 'upper-b'; programBlockId: string; programBlockName: string }) => ({
+              ...session,
+              id: `${target.date}__${target.trainingDay}__${target.programBlockId}`,
+              date: target.date,
+              trainingDay: target.trainingDay,
+              programBlockId: target.programBlockId,
+              programBlockName: target.programBlockName,
+            })),
             saveProgramBlockDefinition: jasmine.createSpy('saveProgramBlockDefinition').and.callFake(async (_userId: string, input: { id: string; name: string; totalWeeks: number; }) => ({
               id: input.id,
               name: input.name,
@@ -80,6 +88,9 @@ describe('WorkoutLogComponent', () => {
   }
 
   beforeEach(async () => {
+    // Drafts live in sessionStorage, which persists across specs in the same browser page.
+    sessionStorage.clear();
+    localStorage.clear();
     await configure();
   });
 
@@ -321,6 +332,92 @@ describe('WorkoutLogComponent', () => {
 
     expect(storage.deleteSession).not.toHaveBeenCalled();
     expect(component.isEditingExisting()).toBeTrue();
+  });
+
+  it('saves an edited workout back into the document it came from', async () => {
+    const storage = TestBed.inject(WorkoutStorageService) as jasmine.SpyObj<WorkoutStorageService>;
+    // Older workouts were stored under a date-only id.
+    const legacy = makeSession({ id: '2026-07-17', date: '2026-07-17' });
+    (storage.getSessions as jasmine.Spy).and.resolveTo([legacy]);
+    (storage.saveSession as jasmine.Spy).and.callFake(async (_userId: string, input: { existingSessionId?: string }) => ({
+      ...legacy,
+      id: input.existingSessionId ?? 'new-id',
+    }));
+
+    component.workoutDate.set('2026-07-17');
+    component.trainingDay.set('lower-a');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(component.lastSavedSession()?.id).toBe('2026-07-17');
+
+    component.blocks[0].movements[0].notes = 'Edited';
+    component.onFieldChange();
+    await component.saveNow();
+
+    const input = (storage.saveSession as jasmine.Spy).calls.mostRecent().args[1];
+    expect(input.existingSessionId).toBe('2026-07-17');
+    expect(input.date).toBe('2026-07-17');
+  });
+
+  it('moves the open workout to another date and follows it there', async () => {
+    const storage = TestBed.inject(WorkoutStorageService) as jasmine.SpyObj<WorkoutStorageService>;
+    component.workoutDate.set('2026-07-17');
+    component.trainingDay.set('lower-a');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    component.openMovePanel();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.move-panel')).toBeTruthy();
+
+    // After the move, storage no longer holds the old document.
+    (storage.moveSession as jasmine.Spy).and.callFake(async (_userId: string, session: WorkoutSession) => {
+      const moved = { ...session, id: '2026-07-18__lower-b__block-1', date: '2026-07-18', trainingDay: 'lower-b' as const };
+      (storage.getSessions as jasmine.Spy).and.resolveTo([moved]);
+      return moved;
+    });
+
+    component.moveTargetDate.set('2026-07-18');
+    component.moveTargetDay.set('lower-b');
+    await component.moveWorkout();
+    fixture.detectChanges();
+    await settle();
+
+    expect(storage.moveSession).toHaveBeenCalledWith(
+      'user-1',
+      jasmine.objectContaining({ id: 'prev' }),
+      jasmine.objectContaining({ date: '2026-07-18', trainingDay: 'lower-b', programBlockId: 'block-1' })
+    );
+    expect(component.isMovePanelOpen()).toBeFalse();
+    expect(component.workoutDate()).toBe('2026-07-18');
+    expect(component.trainingDay()).toBe('lower-b');
+    expect(component.allSessions().some((session) => session.id === 'prev')).toBeFalse();
+    expect(component.saveMessage()).toContain('Moved to Lower Day B');
+  });
+
+  it('computes the program week from block weeks, not the calendar', () => {
+    component.selectedProgramBlockId.set('block-1');
+    component.allSessions.set([
+      makeSession({ id: 'a', date: '2026-09-11', trainingDay: 'lower-a' }),
+      makeSession({ id: 'b', date: '2026-09-13', trainingDay: 'upper-a' }),
+      makeSession({ id: 'c', date: '2026-09-15', trainingDay: 'lower-b' }),
+    ]);
+
+    // Upper B is still open in week 1, even though 9 days have passed.
+    component.workoutDate.set('2026-09-20');
+    component.trainingDay.set('upper-b');
+    expect(component.computedProgramWeek()).toBe(1);
+
+    // Repeating Lower A starts week 2.
+    component.trainingDay.set('lower-a');
+    expect(component.computedProgramWeek()).toBe(2);
+
+    // A saved workout reports the week it belongs to.
+    component.workoutDate.set('2026-09-13');
+    component.trainingDay.set('upper-a');
+    expect(component.computedProgramWeek()).toBe(1);
+    expect(component.blockWeekNumberFor({ id: 'c' })).toBe(1);
   });
 
   it('returns to today from a past workout', async () => {

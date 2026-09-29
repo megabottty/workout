@@ -33,6 +33,7 @@ import {
 } from '../../utils/draft-storage.utils';
 import { TRAINING_DAY_LABELS, TRAINING_DAY_ORDER, formatFriendlyDate } from '../../utils/workout-history.utils';
 import { findLikelyDuplicateMovementName } from '../../utils/movement-similarity.utils';
+import { assignBlockWeeks, nextBlockWeekNumber } from '../../utils/block-week.utils';
 
 export type DraftMovement = {
   id: string;
@@ -173,6 +174,13 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
 
   readonly isEditingExisting = signal(false);
   readonly isDeleting = signal(false);
+
+  // "Move workout" (re-file the open workout under another date/day/block)
+  readonly isMovePanelOpen = signal(false);
+  readonly isMoving = signal(false);
+  readonly moveTargetDate = signal('');
+  readonly moveTargetDay = signal<TrainingDay>('lower-a');
+  readonly moveTargetProgramBlockId = signal(DEFAULT_PROGRAM_BLOCK_ID);
   /** Transient confirmation text for program-block create/edit actions. */
   readonly saveMessage = signal('');
   readonly errorMessage = signal('');
@@ -247,20 +255,25 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
     this.allSessions().filter((session) => session.programBlockId === this.selectedProgramBlockId())
   );
 
-  readonly selectedProgramBlockStartDate = computed(() => {
-    const sorted = this.sessionsForSelectedProgramBlock()
-      .slice()
-      .sort((a, b) => a.date.localeCompare(b.date));
-    return sorted[0]?.date ?? null;
-  });
+  /** Block weeks: one pass through the four training days, independent of the calendar. */
+  readonly blockWeeks = computed(() => assignBlockWeeks(this.allSessions()));
 
   readonly computedProgramWeek = computed(() => {
-    const startDate = this.selectedProgramBlockStartDate();
-    if (!startDate) {
-      return 1;
+    const assignment = this.blockWeeks();
+    const programBlockId = this.selectedProgramBlockId();
+    const date = this.workoutDate();
+    const day = this.trainingDay();
+
+    // An already-saved workout keeps the week it was assigned to.
+    const open = this.allSessions().find(
+      (session) => session.date === date && session.trainingDay === day && session.programBlockId === programBlockId
+    );
+    const openWeek = open ? assignment.weekBySessionId.get(open.id) : undefined;
+    if (openWeek) {
+      return openWeek.weekNumber;
     }
 
-    return this.weekNumberWithinProgramBlock(this.workoutDate(), startDate);
+    return nextBlockWeekNumber(assignment, programBlockId, day);
   });
 
   readonly currentProgramWeek = computed(() => {
@@ -399,7 +412,7 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
             trainingDay: session.trainingDay,
             blockName: block.name,
             programBlockName: session.programBlockName,
-            weekNumber: session.weekNumber ?? null,
+            weekNumber: this.blockWeekNumberFor(session),
             customWeekName: session.customWeekName ?? '',
             movementName: movement.movementName,
             setEntries,
@@ -624,6 +637,80 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
       this.errorMessage.set(error instanceof Error ? error.message : 'Unable to delete workout.');
     } finally {
       this.isDeleting.set(false);
+    }
+  }
+
+  // ─── Move workout ─────────────────────────────────────────────────────────
+
+  openMovePanel(): void {
+    if (!this.lastSavedSession()) {
+      return;
+    }
+    this.moveTargetDate.set(this.workoutDate());
+    this.moveTargetDay.set(this.trainingDay());
+    this.moveTargetProgramBlockId.set(this.selectedProgramBlockId());
+    this.errorMessage.set('');
+    this.isMovePanelOpen.set(true);
+  }
+
+  closeMovePanel(): void {
+    if (this.isMoving()) {
+      return;
+    }
+    this.isMovePanelOpen.set(false);
+  }
+
+  /** Re-files the open workout under the chosen date/day/block and follows it there. */
+  async moveWorkout(): Promise<void> {
+    const session = this.lastSavedSession();
+    const user = this.authService.user();
+    if (!session || !user || this.isMoving()) {
+      return;
+    }
+
+    const date = this.moveTargetDate().trim();
+    const day = this.moveTargetDay();
+    const programBlockId = this.moveTargetProgramBlockId();
+    if (!ISO_DATE_PATTERN.test(date)) {
+      this.errorMessage.set('Pick a valid date to move this workout to.');
+      return;
+    }
+
+    this.isMoving.set(true);
+    this.errorMessage.set('');
+    this.saveMessage.set('');
+
+    try {
+      // Make sure the latest edits are in the document before it is copied.
+      const flushed = await this.flushPendingSave();
+      if (!flushed) {
+        throw new Error('Your latest changes could not be saved, so the workout was not moved.');
+      }
+      const current = this.lastSavedSession() ?? session;
+      const programBlockName =
+        this.programBlockOptions().find((option) => option.id === programBlockId)?.name ?? DEFAULT_PROGRAM_BLOCK_NAME;
+
+      const moved = await this.workoutStorage.moveSession(user.uid, current, {
+        date,
+        trainingDay: day,
+        programBlockId,
+        programBlockName,
+      });
+      clearWorkoutDraft(user.uid, current.date, current.trainingDay, current.programBlockId);
+
+      this.allSessions.update((sessions) => [
+        moved,
+        ...sessions.filter((candidate) => candidate.id !== current.id && candidate.id !== moved.id),
+      ]);
+      this.isMovePanelOpen.set(false);
+      this.openWorkout(moved.date, moved.trainingDay, moved.programBlockId);
+      this.saveMessage.set(
+        `Moved to ${TRAINING_DAY_LABELS[moved.trainingDay]} · ${formatFriendlyDate(moved.date, true)}.`
+      );
+    } catch (error: unknown) {
+      this.errorMessage.set(error instanceof Error ? error.message : 'Unable to move workout.');
+    } finally {
+      this.isMoving.set(false);
     }
   }
 
@@ -966,6 +1053,9 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
   /** Builds the payload written to Firestore from the current form state. */
   private buildSaveInput(): SaveWorkoutInput {
     return {
+      // Keep writing to the document this workout already lives in (older
+      // workouts use a different id scheme) so an edit never creates a duplicate.
+      existingSessionId: this.lastSavedSession()?.id,
       date: this.workoutDate(),
       trainingDay: this.trainingDay(),
       programBlockId: this.selectedProgramBlockId(),
@@ -1505,7 +1595,7 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
     }));
     this.workoutNotes.set(source.notes);
     this.copiedFromDate.set(source.date);
-    const sourceWeek = source.weekNumber ?? this.weekNumberWithinProgramBlock(source.date, this.selectedProgramBlockStartDate() ?? source.date);
+    const sourceWeek = this.blockWeekNumberFor(source) ?? 1;
     const targetWeek = this.currentProgramWeek();
     this.copyWeekMessage.set(`Copied Week ${sourceWeek} into Week ${targetWeek}.`);
     this.errorMessage.set('');
@@ -1806,12 +1896,9 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
     }];
   }
 
-  private weekNumberWithinProgramBlock(targetDateIso: string, startDateIso: string): number {
-    const start = new Date(`${startDateIso}T00:00:00`);
-    const target = new Date(`${targetDateIso}T00:00:00`);
-    const diffMs = target.getTime() - start.getTime();
-    const diffDays = Math.floor(diffMs / 86_400_000);
-    return Math.max(1, Math.floor(diffDays / 7) + 1);
+  /** Block week a saved session belongs to, or null if it isn't in the cache. */
+  blockWeekNumberFor(session: Pick<WorkoutSession, 'id'>): number | null {
+    return this.blockWeeks().weekBySessionId.get(session.id)?.weekNumber ?? null;
   }
 
   private async ensureShareRecipientsLoaded(userId: string): Promise<void> {

@@ -14,7 +14,7 @@
       [class.is-active]="viewMode() === 'by-workout'"
       (click)="setViewMode('by-workout')"
     >
-      📅 By Workout (Weekly)
+      📅 By Block Week
     </button>
     <button
       type="button"
@@ -42,6 +42,7 @@
 
   <p *ngIf="isLoading()">Loading history...</p>
   <p class="error-message" *ngIf="errorMessage()">{{ errorMessage() }}</p>
+  <p class="success-message" *ngIf="actionMessage()">{{ actionMessage() }}</p>
 
   <!-- ════════════════════════════════════════════════════════════════════════ -->
   <!-- View Mode 1: By Workout (Weekly Grouping)                                -->
@@ -54,8 +55,12 @@
     <section class="week" *ngFor="let week of filteredWeekGroups(); trackBy: trackWeek" [attr.id]="weekElementId(week)">
       <header class="week-header">
         <div>
-          <h2>{{ week.weekLabel }}</h2>
-          <p class="week-subtitle">Browse each training day with paged session history.</p>
+          <h2>
+            {{ week.programBlockName }} · Week {{ week.weekNumber }}
+            <span class="custom-week-badge" *ngIf="week.customWeekName">{{ week.customWeekName }}</span>
+            <span class="week-complete-chip" *ngIf="week.isComplete" title="All four training days logged">✓ Complete</span>
+          </h2>
+          <p class="week-subtitle">{{ weekSubtitle(week) }}</p>
         </div>
         <button type="button" class="week-toggle" (click)="toggleWeek(week)">
           {{ isWeekExpanded(week) ? 'Collapse week' : 'Expand week' }}
@@ -102,13 +107,19 @@
               <header class="session__header">
                 <div class="session__title-row">
                   <h4>{{ session.date }}</h4>
-                  <button type="button" class="btn-edit-session" (click)="editSession(session)" [attr.aria-label]="'Edit workout from ' + session.date">
-                    ✏️ Edit
-                  </button>
+                  <span class="duplicate-badge" *ngIf="isDuplicate(session)" title="Another workout is logged for the same date, training day and Program Block. Delete the one you don't want.">Duplicate</span>
+                  <div class="session__actions">
+                    <button type="button" class="btn-edit-session" (click)="editSession(session)" [attr.aria-label]="'Edit workout from ' + session.date">
+                      ✏️ Edit
+                    </button>
+                    <button type="button" class="btn-edit-session btn-delete-session" (click)="deleteSession(session)" [disabled]="deletingSessionId() === session.id" [attr.aria-label]="'Delete workout from ' + session.date">
+                      {{ deletingSessionId() === session.id ? 'Deleting…' : '🗑 Delete' }}
+                    </button>
+                  </div>
                 </div>
                 <div class="session-meta-chips">
                   <span class="program-block-label">{{ session.programBlockName }}</span>
-                  <span class="week-number-badge" *ngIf="session.weekNumber">Week {{ session.weekNumber }}</span>
+                  <span class="week-number-badge" *ngIf="blockWeekNumberFor(session) as week">Week {{ week }}</span>
                   <span class="custom-week-badge" *ngIf="session.customWeekName">{{ session.customWeekName }}</span>
                 </div>
                 <p class="session__notes" *ngIf="session.notes">{{ session.notes }}</p>
@@ -225,9 +236,14 @@
                 <span class="custom-week-badge" *ngIf="entry.customWeekName">{{ entry.customWeekName }}</span>
               </div>
             </div>
-            <button type="button" class="btn-edit-session" (click)="editSession(entry)" [attr.aria-label]="'Edit workout from ' + entry.date">
-              ✏️ Edit
-            </button>
+            <div class="session__actions">
+              <button type="button" class="btn-edit-session" (click)="editSession(entry)" [attr.aria-label]="'Edit workout from ' + entry.date">
+                ✏️ Edit
+              </button>
+              <button type="button" class="btn-edit-session btn-delete-session" (click)="deleteSession({ id: entry.sessionId, date: entry.date, trainingDay: entry.trainingDay })" [disabled]="deletingSessionId() === entry.sessionId" [attr.aria-label]="'Delete workout from ' + entry.date">
+                {{ deletingSessionId() === entry.sessionId ? 'Deleting…' : '🗑 Delete' }}
+              </button>
+            </div>
           </header>
 
           <ul class="timeline-set-list">
