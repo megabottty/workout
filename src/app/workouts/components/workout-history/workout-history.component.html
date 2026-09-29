@@ -100,7 +100,12 @@
 
             <article class="session" *ngFor="let session of pagedSessionsForDay(week, selectedDayForWeek(week)); trackBy: trackSession">
               <header class="session__header">
-                <h4>{{ session.date }}</h4>
+                <div class="session__title-row">
+                  <h4>{{ session.date }}</h4>
+                  <button type="button" class="btn-edit-session" (click)="editSession(session)" [attr.aria-label]="'Edit workout from ' + session.date">
+                    ✏️ Edit
+                  </button>
+                </div>
                 <div class="session-meta-chips">
                   <span class="program-block-label">{{ session.programBlockName }}</span>
                   <span class="week-number-badge" *ngIf="session.weekNumber">Week {{ session.weekNumber }}</span>
@@ -220,6 +225,9 @@
                 <span class="custom-week-badge" *ngIf="entry.customWeekName">{{ entry.customWeekName }}</span>
               </div>
             </div>
+            <button type="button" class="btn-edit-session" (click)="editSession(entry)" [attr.aria-label]="'Edit workout from ' + entry.date">
+              ✏️ Edit
+            </button>
           </header>
 
           <ul class="timeline-set-list">

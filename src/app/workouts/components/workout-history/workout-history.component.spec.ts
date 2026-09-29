@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { User } from '@angular/fire/auth';
 
@@ -48,6 +49,23 @@ describe('WorkoutHistoryComponent', () => {
 
     fixture = TestBed.createComponent(WorkoutHistoryComponent);
     component = fixture.componentInstance;
+  });
+
+  it('opens a session in the Log form via a deep link when Edit is clicked', async () => {
+    const router = TestBed.inject(Router);
+    const navigateSpy = spyOn(router, 'navigate').and.resolveTo(true);
+
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const editButton = fixture.nativeElement.querySelector('.session .btn-edit-session') as HTMLButtonElement;
+    expect(editButton).toBeTruthy();
+    editButton.click();
+
+    expect(navigateSpy).toHaveBeenCalledWith(['/workouts/log'], {
+      queryParams: { date: '2026-07-21', day: 'upper-a', block: jasmine.any(String) },
+    });
   });
 
   it('paginates sessions within a day card', () => {

@@ -1,7 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { User } from '@angular/fire/auth';
+import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
+import { of } from 'rxjs';
 
 import { AuthService } from '../../../auth/services/auth.service';
 import { SocialStorageService } from '../../../social/services/social-storage.service';
@@ -13,10 +15,26 @@ describe('WorkoutLogComponent', () => {
   let fixture: ComponentFixture<WorkoutLogComponent>;
   let component: WorkoutLogComponent;
 
-  beforeEach(async () => {
+  /**
+   * Waits for async work started outside Angular's zone (e.g. promise chains
+   * kicked off directly from the test body), which `fixture.whenStable()`
+   * cannot see, by polling until the component reports it finished loading.
+   */
+  async function settle(): Promise<void> {
+    for (let attempt = 0; attempt < 25; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      fixture.detectChanges();
+      if (!component.isLoading()) {
+        return;
+      }
+    }
+  }
+
+  async function configure(extraProviders: unknown[] = []): Promise<void> {
     await TestBed.configureTestingModule({
       imports: [WorkoutLogComponent, RouterTestingModule],
       providers: [
+        ...(extraProviders as never[]),
         {
           provide: AuthService,
           useValue: {
@@ -58,9 +76,13 @@ describe('WorkoutLogComponent', () => {
 
     fixture = TestBed.createComponent(WorkoutLogComponent);
     component = fixture.componentInstance;
+  }
+
+  beforeEach(async () => {
+    await configure();
   });
 
-  it('shows the last-week movement reference beside a matching movement', async () => {
+  it('shows a collapsed one-line summary of the last same-day session, expanding to full history on tap', async () => {
     component.workoutDate.set('2026-07-24');
     component.trainingDay.set('lower-a');
 
@@ -88,19 +110,63 @@ describe('WorkoutLogComponent', () => {
 
     fixture.detectChanges();
 
-    const text = fixture.nativeElement.textContent as string;
-    expect(text).toContain('Back squat history');
-    expect(text).toContain('2026-07-17');
+    const collapsedText = fixture.nativeElement.textContent as string;
+    expect(collapsedText).toContain('Last Lower Day A · 2026-07-17');
     // The previous session's actual sets/reps/load must be visible, not just its date.
-    expect(text).toContain('5 × 185');
-    expect(text).toContain('Keep braced');
+    expect(collapsedText).toContain('5 × 185, 5 × 185');
+    expect(collapsedText).not.toContain('Keep braced');
+    expect(component.isMovementHistoryExpanded({ id: 'move-1' })).toBeFalse();
+
+    const summaryButton = fixture.nativeElement.querySelector('.history-summary') as HTMLButtonElement;
+    summaryButton.click();
+    fixture.detectChanges();
+
+    expect(component.isMovementHistoryExpanded({ id: 'move-1' })).toBeTrue();
+    expect(fixture.nativeElement.textContent as string).toContain('Keep braced');
   });
 
-  it('returns full movement history for dropdown-selected names', () => {
+  it('hides every history column when history is switched off', async () => {
+    component.workoutDate.set('2026-07-24');
+    component.trainingDay.set('lower-a');
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    component.allSessions.set([makeSession()]);
+    component.blocks = [
+      {
+        id: 'block-1',
+        name: 'Block 1',
+        movements: [
+          {
+            id: 'move-1',
+            movementName: 'Back squat',
+            setEntries: [{ setNumber: 1, reps: null, load: null }],
+            notes: '',
+          },
+        ],
+      },
+    ];
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.movement-reference')).toBeTruthy();
+
+    component.toggleShowHistory();
+    fixture.detectChanges();
+
+    expect(component.showHistory()).toBeFalse();
+    expect(fixture.nativeElement.querySelector('.movement-reference')).toBeNull();
+
+    component.toggleShowHistory();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.movement-reference')).toBeTruthy();
+  });
+
+  it('only shows movement history from the same training day', () => {
+    component.workoutDate.set('2026-07-24');
+    component.trainingDay.set('lower-a');
     component.allSessions.set([
       makeSession(),
       makeSession({
-        id: 'older',
+        id: 'other-day',
         date: '2026-07-10',
         trainingDay: 'upper-a',
         blockName: 'Accessory',
@@ -116,10 +182,121 @@ describe('WorkoutLogComponent', () => {
 
     const history = component.movementHistoryFor('Back squat');
 
-    expect(history.length).toBe(2);
-    expect(history.map((entry) => entry.sessionDate)).toEqual(['2026-07-17', '2026-07-10']);
+    expect(history.length).toBe(1);
+    expect(history[0].sessionDate).toBe('2026-07-17');
     expect(history[0].trainingDay).toBe('lower-a');
-    expect(history[1].trainingDay).toBe('upper-a');
+
+    component.trainingDay.set('upper-a');
+    const upperHistory = component.movementHistoryFor('Back squat');
+    expect(upperHistory.map((entry) => entry.sessionDate)).toEqual(['2026-07-10']);
+  });
+
+  it('opens a saved workout for editing from the recent list', async () => {
+    const storage = TestBed.inject(WorkoutStorageService) as jasmine.SpyObj<WorkoutStorageService>;
+    const older = makeSession({ id: 'older', date: '2026-07-10', movementName: 'Front squat', programBlockId: 'block-2', programBlockName: 'Program Block 2' });
+    (storage.getSessions as jasmine.Spy).and.resolveTo([makeSession(), older]);
+
+    component.workoutDate.set('2026-07-17');
+    component.trainingDay.set('lower-a');
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    component.openSessionForEditing(older);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component.workoutDate()).toBe('2026-07-10');
+    expect(component.trainingDay()).toBe('lower-a');
+    expect(component.selectedProgramBlockId()).toBe('block-2');
+    expect(component.isEditingExisting()).toBeTrue();
+    expect(component.blocks[0].movements[0].movementName).toBe('Front squat');
+    expect(component.workoutStatusKind()).toBe('editing');
+    expect(component.workoutStatusLabel()).toContain('Editing Lower Day A');
+    expect(fixture.nativeElement.textContent as string).toContain('Back to today');
+  });
+
+  it('returns to today from a past workout', async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    component.workoutDate.set('2026-07-10');
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    component.backToToday();
+
+    expect(component.workoutDate()).toBe(today);
+    expect(component.isViewingToday()).toBeTrue();
+    expect(component.workoutStatusKind()).toBe('today');
+  });
+
+  it('loads the workout that the URL query params point to', async () => {
+    const storage = TestBed.inject(WorkoutStorageService) as jasmine.SpyObj<WorkoutStorageService>;
+    const linked = makeSession({ id: 'linked', date: '2026-07-10', trainingDay: 'upper-b', movementName: 'Bench press', programBlockId: 'block-2', programBlockName: 'Program Block 2' });
+    (storage.getSessions as jasmine.Spy).and.resolveTo([makeSession(), linked]);
+
+    const params = convertToParamMap({ date: '2026-07-10', day: 'upper-b', block: 'block-2' });
+    TestBed.resetTestingModule();
+    await configure([
+      {
+        provide: ActivatedRoute,
+        useValue: { snapshot: { queryParamMap: params }, queryParamMap: of(params) },
+      },
+    ]);
+    const freshStorage = TestBed.inject(WorkoutStorageService) as jasmine.SpyObj<WorkoutStorageService>;
+    (freshStorage.getSessions as jasmine.Spy).and.resolveTo([makeSession(), linked]);
+
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component.workoutDate()).toBe('2026-07-10');
+    expect(component.trainingDay()).toBe('upper-b');
+    expect(component.selectedProgramBlockId()).toBe('block-2');
+    expect(component.blocks[0].movements[0].movementName).toBe('Bench press');
+  });
+
+  it('shows the newly selected date\'s workout even while the previous workout is still saving', async () => {
+    const storage = TestBed.inject(WorkoutStorageService) as jasmine.SpyObj<WorkoutStorageService>;
+    const todaySession = makeSession({ id: 'today', date: '2026-07-17', movementName: 'Back squat' });
+    const lastWeek = makeSession({ id: 'last-week', date: '2026-07-10', movementName: 'Front squat' });
+    (storage.getSessions as jasmine.Spy).and.resolveTo([todaySession, lastWeek]);
+
+    let resolveSave: (session: WorkoutSession) => void = () => undefined;
+    (storage.saveSession as jasmine.Spy).and.returnValue(
+      new Promise<WorkoutSession>((resolve) => {
+        resolveSave = resolve;
+      })
+    );
+
+    component.workoutDate.set('2026-07-17');
+    component.trainingDay.set('lower-a');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(component.blocks[0].movements[0].movementName).toBe('Back squat');
+
+    // Type into today's workout so an auto-save is pending, then immediately jump to last week.
+    component.blocks[0].movements[0].notes = 'Felt strong';
+    component.onFieldChange();
+    expect(component.saveState()).toBe('pending');
+
+    component.workoutDate.set('2026-07-10');
+    component.onWorkoutDateChange();
+    fixture.detectChanges();
+    await Promise.resolve();
+
+    expect(storage.saveSession).toHaveBeenCalledTimes(1);
+    const savedInput = (storage.saveSession as jasmine.Spy).calls.mostRecent().args[1];
+    expect(savedInput.date).toBe('2026-07-17');
+    expect(savedInput.blocks[0].movements[0].notes).toBe('Felt strong');
+
+    // Save is still in flight; the form must not keep showing today's workout under last week's date.
+    resolveSave({ ...todaySession, blocks: [{ ...todaySession.blocks[0], movements: [{ ...todaySession.blocks[0].movements[0], notes: 'Felt strong' }] }] });
+    await settle();
+
+    expect(component.workoutDate()).toBe('2026-07-10');
+    expect(component.blocks[0].movements[0].movementName).toBe('Front squat');
+    expect(component.blocks[0].movements[0].notes).toBe('Keep braced');
+    expect(storage.saveSession).toHaveBeenCalledTimes(1);
   });
 
   it('scopes movement history to all blocks or selected program block based on toggle', () => {

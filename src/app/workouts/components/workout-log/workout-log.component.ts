@@ -1,7 +1,8 @@
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, computed, effect, signal } from '@angular/core';
+import { Component, DestroyRef, HostListener, computed, effect, inject, signal, untracked } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 
 import { AuthService } from '../../../auth/services/auth.service';
 import { SocialStorageService } from '../../../social/services/social-storage.service';
@@ -30,7 +31,7 @@ import {
   loadWorkoutDraft,
   saveWorkoutDraft,
 } from '../../utils/draft-storage.utils';
-import { TRAINING_DAY_LABELS, TRAINING_DAY_ORDER } from '../../utils/workout-history.utils';
+import { TRAINING_DAY_LABELS, TRAINING_DAY_ORDER, formatFriendlyDate } from '../../utils/workout-history.utils';
 import { findLikelyDuplicateMovementName } from '../../utils/movement-similarity.utils';
 
 export type DraftMovement = {
@@ -49,18 +50,6 @@ export type DraftBlock = {
   id: string;
   name: string;
   movements: DraftMovement[];
-};
-
-export type MovementReference = {
-  sourceDate: string;
-  blockName: string;
-  movementName: string;
-  setEntries: Array<{
-    setNumber: number;
-    reps: number | null;
-    load: number | string | null;
-  }>;
-  notes: string;
 };
 
 export type MovementHistoryEntry = {
@@ -96,6 +85,33 @@ type PendingSave = {
 const DRAFT_DEBOUNCE_MS = 400;
 const FIRESTORE_AUTOSAVE_DEBOUNCE_MS = 1500;
 const INLINE_HISTORY_ENTRY_COUNT = 3;
+const HISTORY_SUMMARY_MAX_SETS = 4;
+const SHOW_HISTORY_PREF_KEY = 'workout_log_show_history';
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+export type WorkoutStatusKind = 'today' | 'editing' | 'new';
+
+function readShowHistoryPreference(): boolean {
+  try {
+    return typeof localStorage === 'undefined' ? true : localStorage.getItem(SHOW_HISTORY_PREF_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+function writeShowHistoryPreference(value: boolean): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(SHOW_HISTORY_PREF_KEY, value ? 'true' : 'false');
+    }
+  } catch {
+    // Ignore storage errors (quota, private mode)
+  }
+}
+
+function isTrainingDay(value: string | null): value is TrainingDay {
+  return value !== null && (TRAINING_DAY_ORDER as string[]).includes(value);
+}
 
 type ShareRecipientOption = {
   uid: string;
@@ -110,7 +126,11 @@ type ShareRecipientOption = {
   styleUrl: './workout-log.component.scss',
 })
 export class WorkoutLogComponent implements ComponentCanDeactivate {
-  readonly workoutDate = signal(new Date().toISOString().slice(0, 10));
+  private readonly todayIso = new Date().toISOString().slice(0, 10);
+  private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
+
+  readonly workoutDate = signal(this.todayIso);
   readonly trainingDay = signal<TrainingDay>('lower-a');
   readonly selectedProgramBlockId = signal(DEFAULT_PROGRAM_BLOCK_ID);
   readonly showAllProgramBlockHistory = signal(true);
@@ -119,6 +139,12 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
   readonly customWeekName = signal('');
   readonly isManualWeek = signal(false);
   blocks: DraftBlock[] = [this.createBlock(1)];
+
+  // Movement history visibility
+  /** Page-level switch, remembered across visits. */
+  readonly showHistory = signal(readShowHistoryPreference());
+  /** Movement ids whose history column is expanded; everything else shows a one-line summary. */
+  readonly expandedHistoryIds = signal<Set<string>>(new Set());
 
   // Edit / Reordering Mode
   readonly isEditMode = signal(false);
@@ -257,16 +283,37 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
     const currentDay = this.trainingDay();
     const currentProgramBlockId = this.selectedProgramBlockId();
 
-    // The workout being edited isn't "history" — excluding it keeps trend
-    // deltas and the entry list meaningful once auto-save starts writing.
+    // Only the same training day is relevant context (Lower Day A history while
+    // logging Lower Day A). The workout being edited isn't "history" either —
+    // excluding it keeps trend deltas meaningful once auto-save starts writing.
     return pool.filter(
       (session) =>
-        !(
-          session.date === currentDate &&
-          session.trainingDay === currentDay &&
-          session.programBlockId === currentProgramBlockId
-        )
+        session.trainingDay === currentDay &&
+        !(session.date === currentDate && session.programBlockId === currentProgramBlockId)
     );
+  });
+
+  readonly isViewingToday = computed(() => this.workoutDate() === this.todayIso);
+
+  readonly workoutStatusKind = computed<WorkoutStatusKind>(() => {
+    if (this.isViewingToday()) {
+      return 'today';
+    }
+    return this.isEditingExisting() ? 'editing' : 'new';
+  });
+
+  /** "Editing Lower Day A · Sun, Sep 14, 2026 · Week 2 of 8" — says exactly which workout the form holds. */
+  readonly workoutStatusLabel = computed(() => {
+    const dayLabel = TRAINING_DAY_LABELS[this.trainingDay()];
+    const weekLabel = this.currentProgramWeekLabel();
+    switch (this.workoutStatusKind()) {
+      case 'today':
+        return `Today · ${dayLabel} · ${weekLabel}`;
+      case 'editing':
+        return `Editing ${dayLabel} · ${formatFriendlyDate(this.workoutDate(), true)} · ${weekLabel}`;
+      default:
+        return `New workout · ${dayLabel} · ${formatFriendlyDate(this.workoutDate(), true)} · ${weekLabel}`;
+    }
   });
 
   readonly recentSessionsForDay = computed(() =>
@@ -407,6 +454,10 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
   ) {
     clearLegacyLocalStorageDrafts();
 
+    // Deep links (`?date=…&day=…&block=…`) from the History page and Edit
+    // buttons must be applied before the load effect below runs the first time.
+    this.applyQueryParams(this.route.snapshot.queryParamMap);
+
     effect(() => {
       const user = this.authService.user();
       const date = this.workoutDate();
@@ -418,8 +469,134 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
         return;
       }
 
-      void this.loadSelection(user.uid, date, day);
+      // Only user/date/day should re-run this effect. loadSelection reads other
+      // signals synchronously (e.g. saveState while flushing), and tracking
+      // those would rebuild the form — wiping in-progress typing — on every save.
+      untracked(() => void this.loadSelection(user.uid, date, day));
     }, { allowSignalWrites: true });
+
+    this.route.queryParamMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((params) => {
+        if (params.has('date')) {
+          this.applyQueryParams(params);
+        } else if (!this.isViewingToday()) {
+          // Tapping "Log" in the nav while a past workout is open clears the
+          // params; treat that as "take me back to today".
+          this.openWorkout(this.todayIso, this.trainingDay(), this.selectedProgramBlockId());
+        }
+      });
+  }
+
+  // ─── Opening a specific workout ───────────────────────────────────────────
+
+  /** Puts the given saved workout into the form (used by the Edit buttons). */
+  openSessionForEditing(session: Pick<WorkoutSession, 'date' | 'trainingDay' | 'programBlockId'>): void {
+    this.openWorkout(session.date, session.trainingDay, session.programBlockId);
+    if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+
+  backToToday(): void {
+    this.openWorkout(this.todayIso, this.trainingDay(), this.selectedProgramBlockId());
+  }
+
+  isSessionOpen(session: Pick<WorkoutSession, 'date' | 'trainingDay' | 'programBlockId'>): boolean {
+    return (
+      session.date === this.workoutDate() &&
+      session.trainingDay === this.trainingDay() &&
+      session.programBlockId === this.selectedProgramBlockId()
+    );
+  }
+
+  private openWorkout(date: string, day: TrainingDay, programBlockId: string, syncUrl = true): void {
+    const unchanged =
+      date === this.workoutDate() && day === this.trainingDay() && programBlockId === this.selectedProgramBlockId();
+    if (unchanged) {
+      return;
+    }
+
+    void this.flushPendingSave();
+    this.copiedFromDate.set('');
+    this.copyWeekMessage.set('');
+    this.errorMessage.set('');
+
+    const dateOrDayChanged = date !== this.workoutDate() || day !== this.trainingDay();
+    this.selectedProgramBlockId.set(programBlockId);
+    this.workoutDate.set(date);
+    this.trainingDay.set(day);
+
+    // Same date/day but a different program block doesn't re-trigger the load
+    // effect, so rebuild from cache directly (as onProgramBlockChange does).
+    if (!dateOrDayChanged) {
+      this.loadSelectionFromCache(date, day);
+    }
+    if (syncUrl) {
+      this.syncQueryParams();
+    }
+  }
+
+  private applyQueryParams(params: ParamMap): void {
+    const date = params.get('date');
+    const day = params.get('day');
+    const block = params.get('block');
+    if (!date || !ISO_DATE_PATTERN.test(date) || !isTrainingDay(day)) {
+      return;
+    }
+
+    // The URL already holds these params; rewriting it mid-navigation would cancel that navigation.
+    this.openWorkout(date, day, block?.trim() || this.selectedProgramBlockId(), false);
+  }
+
+  /** Keeps the URL describing the open workout so a refresh reopens it. */
+  private syncQueryParams(): void {
+    try {
+      void this.router
+        .navigate([], {
+          relativeTo: this.route,
+          queryParams: {
+            date: this.workoutDate(),
+            day: this.trainingDay(),
+            block: this.selectedProgramBlockId(),
+          },
+          replaceUrl: true,
+        })
+        .catch(() => undefined);
+    } catch {
+      // URL sync is cosmetic; never let it break the form.
+    }
+  }
+
+  // ─── Movement history visibility ──────────────────────────────────────────
+
+  toggleShowHistory(): void {
+    const next = !this.showHistory();
+    this.showHistory.set(next);
+    writeShowHistoryPreference(next);
+  }
+
+  isMovementHistoryExpanded(movement: { id: string }): boolean {
+    return this.expandedHistoryIds().has(movement.id);
+  }
+
+  toggleMovementHistory(movement: { id: string }): void {
+    this.expandedHistoryIds.update((existing) => {
+      const next = new Set(existing);
+      if (next.has(movement.id)) {
+        next.delete(movement.id);
+      } else {
+        next.add(movement.id);
+      }
+      return next;
+    });
+  }
+
+  /** "8 × 100, 8 × 100, 6 × 100" for the collapsed one-line summary. */
+  historySummaryLine(entry: MovementHistoryEntry): string {
+    const parts = entry.setEntries.slice(0, HISTORY_SUMMARY_MAX_SETS).map((setEntry) => this.formatSetEntry(setEntry));
+    const suffix = entry.setEntries.length > HISTORY_SUMMARY_MAX_SETS ? ', …' : '';
+    return parts.join(', ') + suffix;
   }
 
   /**
@@ -681,18 +858,25 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
     if (this.autoSaveTimeout) {
       clearTimeout(this.autoSaveTimeout);
     }
+
+    // Snapshot now, write later: if the user switches date/day before the
+    // debounce fires, the draft must still land under the workout it belongs to.
+    const draft = this.buildDraft();
     this.autoSaveTimeout = setTimeout(() => {
-      this.saveDraftToStorage();
+      this.autoSaveTimeout = null;
+      if (draft) {
+        saveWorkoutDraft(draft);
+      }
     }, DRAFT_DEBOUNCE_MS);
 
     this.scheduleFirestoreSave();
   }
 
-  private saveDraftToStorage(): void {
+  private buildDraft(): WorkoutDraft | null {
     const user = this.authService.user();
-    if (!user) return;
+    if (!user) return null;
 
-    const draft: WorkoutDraft = {
+    return {
       userId: user.uid,
       workoutDate: this.workoutDate(),
       trainingDay: this.trainingDay(),
@@ -716,8 +900,6 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
       })),
       savedAt: new Date().toISOString(),
     };
-
-    saveWorkoutDraft(draft);
   }
 
   // ─── Auto-save & Share Workout ────────────────────────────────────────────
@@ -1004,10 +1186,6 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
     return this.movementHistoryFor(movementName).slice(INLINE_HISTORY_ENTRY_COUNT);
   }
 
-  hasMovementContext(movementName: string): boolean {
-    return this.movementReferenceFor(movementName) !== null || this.movementHistoryFor(movementName).length > 0;
-  }
-
   historyDayLabel(entry: MovementHistoryEntry): string {
     return TRAINING_DAY_LABELS[entry.trainingDay];
   }
@@ -1058,43 +1236,12 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
     return best;
   }
 
-  movementReferenceFor(movementName: string): MovementReference | null {
-    const reference = this.previousSessionForDay();
-    if (!reference) {
-      return null;
-    }
-
-    const normalized = movementName.trim().toLowerCase();
-    if (normalized.length === 0) {
-      return null;
-    }
-
-    for (const block of reference.blocks) {
-      for (const movement of block.movements) {
-        if (movement.movementName.trim().toLowerCase() === normalized) {
-          return {
-            sourceDate: reference.date,
-            blockName: block.name,
-            movementName: movement.movementName,
-            setEntries: movement.setEntries.map((setEntry) => ({
-              setNumber: setEntry.setNumber,
-              reps: setEntry.reps,
-              load: setEntry.load,
-            })),
-            notes: movement.notes,
-          };
-        }
-      }
-    }
-
-    return null;
-  }
-
   onWorkoutDateChange(): void {
     void this.flushPendingSave();
     this.copiedFromDate.set('');
     this.copyWeekMessage.set('');
     this.errorMessage.set('');
+    this.syncQueryParams();
   }
 
   onTrainingDayChange(): void {
@@ -1102,6 +1249,7 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
     this.copiedFromDate.set('');
     this.copyWeekMessage.set('');
     this.errorMessage.set('');
+    this.syncQueryParams();
   }
 
   onProgramBlockChange(programBlockId: string): void {
@@ -1111,6 +1259,7 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
     this.copyWeekMessage.set('');
     this.errorMessage.set('');
     this.loadSelectionFromCache(this.workoutDate(), this.trainingDay());
+    this.syncQueryParams();
   }
 
   // ─── Program Block Creation / Editing Modal ───────────────────────────────
@@ -1327,6 +1476,25 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
     this.isLoading.set(true);
 
     try {
+      // Edits to the previously open workout are snapshotted with their own
+      // date/day/block, so flushing here writes them to the *old* document.
+      // Waiting for that write also means the form below is never rebuilt
+      // while a save from the previous selection is still in flight — which
+      // used to leave the old workout on screen under the new date.
+      await this.flushPendingSave();
+      if (loadToken !== this.loadToken) {
+        return;
+      }
+
+      // Show the target workout from the cache straight away so the user never
+      // sees the previous workout under the new date while Firestore loads.
+      // Skipped on a cold load so a sessionStorage draft isn't pushed before we
+      // know what Firestore holds.
+      if (this.allSessions().length > 0) {
+        this.ensureSelectedProgramBlock(this.allSessions(), this.programBlockDefinitions(), date, day);
+        this.loadSelectionFromCache(date, day);
+      }
+
       const [sessions, definitions] = await Promise.all([
         this.workoutStorage.getSessions(userId),
         this.workoutStorage.getProgramBlockDefinitions(userId),
@@ -1350,6 +1518,7 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
       if (!this.pendingSave && !this.saveInFlight) {
         this.loadSelectionFromCache(date, day);
       }
+      this.syncQueryParams();
     } finally {
       if (loadToken === this.loadToken) {
         this.isLoading.set(false);
@@ -1380,6 +1549,7 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
     this.isProgramBlockModalOpen.set(false);
     this.isLoading.set(false);
     this.isDraftRestored.set(false);
+    this.expandedHistoryIds.set(new Set());
   }
 
   private async reloadSessionsCache(userId: string): Promise<void> {
@@ -1461,6 +1631,7 @@ export class WorkoutLogComponent implements ComponentCanDeactivate {
 
   private loadSelectionFromCache(date: string, day: TrainingDay, forceIgnoreDraft = false): void {
     const user = this.authService.user();
+    this.expandedHistoryIds.set(new Set());
     const existing = this.allSessions().find((session) =>
       session.date === date &&
       session.trainingDay === day &&

@@ -980,3 +980,205 @@ button {
     gap: 0.5rem;
   }
 }
+/* ─── Workout status strip (which workout is open + save state) ───────────── */
+
+.workout-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  border: 1px solid #cbd5e1;
+  border-left: 4px solid #3b82f6;
+  border-radius: 0.65rem;
+  background: #eff6ff;
+  padding: 0.6rem 0.85rem;
+  margin-bottom: 1rem;
+
+  &[data-kind='editing'] {
+    border-left-color: #f59e0b;
+    background: #fffbeb;
+  }
+
+  &[data-kind='new'] {
+    border-left-color: #10b981;
+    background: #ecfdf5;
+  }
+}
+
+.workout-status__main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.workout-status__icon {
+  font-size: 1.1rem;
+}
+
+.workout-status__label {
+  font-weight: 700;
+  color: #1e293b;
+  overflow-wrap: anywhere;
+}
+
+.btn-back-to-today {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  min-height: auto;
+  cursor: pointer;
+}
+
+.workout-status .save-status {
+  font-size: 0.85rem;
+  color: #475569;
+  white-space: nowrap;
+
+  &[data-state='loading'] {
+    color: #b45309;
+  }
+}
+
+form.is-loading {
+  pointer-events: none;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+/* ─── Page-level history toggle ───────────────────────────────────────────── */
+
+.btn-history-toggle.is-active {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+/* ─── Collapsible per-movement history ────────────────────────────────────── */
+
+.movement-reference.is-collapsed {
+  padding: 0;
+  border-style: solid;
+  background: #fff;
+}
+
+.history-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.6rem;
+  cursor: pointer;
+  min-height: 2.75rem;
+
+  &:hover {
+    background: #f1f5f9;
+  }
+}
+
+.history-summary__text {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.history-summary__label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.history-summary__sets {
+  font-weight: 600;
+  color: #1e293b;
+  overflow-wrap: anywhere;
+}
+
+.history-summary__chevron {
+  color: #64748b;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+/* ─── Recent history: Edit buttons ────────────────────────────────────────── */
+
+.recent-history-hint {
+  margin: -0.25rem 0 0;
+  color: #64748b;
+  font-size: 0.88rem;
+}
+
+.recent-session.is-open {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px #dbeafe;
+}
+
+.recent-session__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.25rem;
+
+  h3 {
+    margin: 0;
+    flex: 1;
+  }
+}
+
+.recent-session__week {
+  font-size: 0.78rem;
+  color: #475569;
+  background: #f1f5f9;
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+}
+
+.recent-session__open-chip {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #1d4ed8;
+  background: #dbeafe;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+}
+
+.btn-edit-session {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 0.45rem;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  min-height: auto;
+  cursor: pointer;
+
+  &:hover {
+    background: #f1f5f9;
+  }
+}
+
+@media (max-width: 640px) {
+  .workout-status {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .workout-status .save-status {
+    white-space: normal;
+  }
+}

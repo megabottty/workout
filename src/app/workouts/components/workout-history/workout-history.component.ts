@@ -26,6 +26,7 @@ export interface MovementHistorySessionEntry {
   sessionId: string;
   date: string;
   trainingDay: TrainingDay;
+  programBlockId: string;
   programBlockName: string;
   weekNumber?: number;
   customWeekName?: string;
@@ -164,6 +165,7 @@ export class WorkoutHistoryComponent {
               sessionId: session.id,
               date: session.date,
               trainingDay: session.trainingDay,
+              programBlockId: session.programBlockId,
               programBlockName: session.programBlockName,
               weekNumber: session.weekNumber,
               customWeekName: session.customWeekName,
@@ -200,6 +202,17 @@ export class WorkoutHistoryComponent {
 
       void this.loadHistory(user.uid);
     }, { allowSignalWrites: true });
+  }
+
+  /** Opens the given workout in the Log form via a deep link. */
+  editSession(session: { date: string; trainingDay: TrainingDay; programBlockId: string }): void {
+    void this.router.navigate(['/workouts/log'], {
+      queryParams: {
+        date: session.date,
+        day: session.trainingDay,
+        block: session.programBlockId,
+      },
+    });
   }
 
   setViewMode(mode: 'by-workout' | 'by-movement'): void {

@@ -885,3 +885,37 @@ ul {
     grid-template-columns: 1fr;
   }
 }
+
+/* ─── Edit buttons (open a past workout in the Log form) ──────────────────── */
+
+.btn-edit-session {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 0.45rem;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  min-height: auto;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    background: #f1f5f9;
+  }
+}
+
+.session__header .btn-edit-session,
+.timeline-header .btn-edit-session {
+  margin-left: auto;
+}
+
+.session__title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.session__title-row h4 {
+  margin: 0;
+}

@@ -37,7 +37,7 @@ export function groupSessionsByWeek(
     .sort((a, b) => b[0].localeCompare(a[0]))
     .map(([weekStartDate, weekSessions]) => ({
       weekStartDate,
-      weekLabel: `Week of ${formatDate(weekStartDate)}`,
+      weekLabel: `Week of ${formatFriendlyDate(weekStartDate)}`,
       sessions: weekSessions
         .slice()
         .sort((a, b) => b.date.localeCompare(a.date)),
@@ -52,9 +52,14 @@ export function getWeekStartDateKey(dateIso: string, weekStartsOn: 0 | 1): strin
   return date.toISOString().slice(0, 10);
 }
 
-function formatDate(dateIso: string): string {
+/** "Sep 14, 2026", or "Sun, Sep 14, 2026" with `includeWeekday`. */
+export function formatFriendlyDate(dateIso: string, includeWeekday = false): string {
   const date = new Date(`${dateIso}T12:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return dateIso;
+  }
   return date.toLocaleDateString(undefined, {
+    ...(includeWeekday ? { weekday: 'short' } : {}),
     year: 'numeric',
     month: 'short',
     day: 'numeric',
